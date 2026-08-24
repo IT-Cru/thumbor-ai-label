@@ -535,7 +535,7 @@ Two obligations, both light: keep the licence and copyright notice with any copy
 distribute, and state what you changed if you ship a modified version.
 
 Bundled European Commission AI-labelling icons carry the Commission's own terms and are
-not covered by the above — see [NOTICE](NOTICE).
+not covered by the above — see [THIRD-PARTY.md](THIRD-PARTY.md).
 
 ## Sponsoring
 

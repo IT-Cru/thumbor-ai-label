@@ -1,51 +1,9 @@
 thumbor-ai-label
-Copyright 2026 <COPYRIGHT HOLDER — the one remaining blank; see README>
 
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
-file except in compliance with the License. You may obtain a copy of the License at
+This product bundles icons published by the European Commission as "EU Icons for
+labelling AI-generated content" (10 June 2026). They are located under
+src/thumbor_ai_label/icons/eu/ and src/thumbor_ai_label/icons/eu-white/, excluding
+unknown.png in each directory.
 
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under
-the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
-ANY KIND, either express or implied. See the License for the specific language
-governing permissions and limitations under the License.
-
-
---------------------------------------------------------------------------------
-THIRD-PARTY ASSETS
---------------------------------------------------------------------------------
-
-European Commission AI labelling icons
---------------------------------------
-
-The files under:
-
-    src/thumbor_ai_label/icons/eu/
-    src/thumbor_ai_label/icons/eu-white/
-
-with the exception of `unknown.png` in each directory, are derived from the official
-"EU Icons for labelling AI-generated content" published by the European Commission on
-10 June 2026:
-
-    https://digital-strategy.ec.europa.eu/en/policies/eu-icons-labelling-ai-generated-content
-
-The Commission makes these icons "publicly available for everyone to use freely,
-without the need for attribution to the Commission or the AI Office."
-
-They are NOT covered by this project's Apache-2.0 licence and are NOT the copyright of
-this project's authors. They are redistributed unmodified in design; the only change
-is a proportional downscale to 256 px in height. `tools/fetch_eu_icons.py` regenerates
-them from the Commission's published archive.
-
-Two caveats carried over from the Commission's own guidance:
-
-  * Signatories of the Code of Practice on Transparency of AI-Generated Content must
-    use these icons in accordance with its placement specifications.
-  * Use of these icons by non-signatories should not be construed as signalling their
-    adherence to that Code.
-
-The `unknown.png` icon in each set is this project's own work, under this project's
-Apache-2.0 licence. It is deliberately not an EU icon: the official marks assert that
-content IS AI-generated, which is a claim that cannot be made about content whose
-provenance merely could not be established.
+Those icons are not covered by this product's Apache-2.0 licence. The Commission makes
+them freely usable without attribution. See THIRD-PARTY.md for provenance and caveats.
