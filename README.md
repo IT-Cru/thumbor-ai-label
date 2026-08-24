@@ -525,8 +525,31 @@ carrying one — so the default would make CI artefacts silently unpublishable.
 
 ## Licence
 
-**Not yet chosen — all rights reserved for now.** See [LICENCE-STATUS.md](LICENCE-STATUS.md)
-for what has to happen before this repository can be made public.
+Apache License 2.0 — see [LICENSE](LICENSE).
 
-Bundled European Commission AI-labelling icons carry their own terms and are not
-affected by that decision — see [NOTICE](NOTICE).
+Use it for anything: private projects, internal tooling, commercial products, hosted
+services. No fee, no permission needed, no copyleft. Apache-2.0 also grants an express
+patent licence, which MIT does not, so it is the safer choice for corporate adopters.
+
+Two obligations, both light: keep the licence and copyright notice with any copy you
+distribute, and state what you changed if you ship a modified version.
+
+Bundled European Commission AI-labelling icons carry the Commission's own terms and are
+not covered by the above — see [NOTICE](NOTICE).
+
+## Sponsoring
+
+This is licensed permissively on purpose. A compliance tool is worth more the more
+widely it is used, and a licence that fenced off commercial users would have fenced off
+almost everyone who actually runs Thumbor.
+
+That leaves development unfunded, so: **if you run this in a commercial product — and
+particularly if you offer AI labelling as a feature your customers pay for — please
+sponsor its development.** It is a request, not a licence condition; nothing here is
+enforced and nothing is withheld from anyone who does not.
+
+[GitHub Sponsors](https://github.com/sponsors/IT-Cru)
+
+Non-financial contributions are worth as much: real-world images whose provenance
+metadata this fails to read are the single most useful thing you can send, since every
+fixture in the test suite is synthetic.
