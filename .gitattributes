@@ -1,0 +1,3 @@
+# Lets setuptools-scm recover a version from a GitHub source tarball, which carries
+# no .git directory. Without this, `pip install <github tarball>` gets the fallback.
+.git_archival.txt export-subst

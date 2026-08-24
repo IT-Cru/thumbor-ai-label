@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thumbor-ai-label"
+dynamic = ["version"]
+description = "Thumbor plugin that detects AI provenance metadata and composites an AI label watermark"
+readme = "README.md"
+requires-python = ">=3.10"
+# LICENCE NOT YET CHOSEN. Deliberately no `license` / `license-files` key: declaring
+# a licence that has not been decided would be worse than declaring none. When it is
+# settled, add the SPDX string form (the TOML-table form is removed after 2027-02-18):
+#     license = "MIT"
+#     license-files = ["LICENSE", "NOTICE"]
+keywords = [
+    "thumbor", "ai", "watermark", "label", "labelling", "provenance",
+    "c2pa", "iptc", "xmp", "exif", "eu-ai-act", "deepfake", "transparency",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Private :: Do Not Upload",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Legal Industry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = []
+
+# The scanner and detectors are deliberately dependency-free so they run and test
+# anywhere. Thumbor itself is only needed by the filter/handler layer.
+[project.optional-dependencies]
+thumbor = ["thumbor>=7.8"]
+c2pa = ["c2pa-python>=0.5"]
+dev = ["pytest>=8", "pytest-cov>=5", "packaging>=23"]
+
+[project.urls]
+Homepage = "https://github.com/IT-Cru/thumbor-ai-label"
+Repository = "https://github.com/IT-Cru/thumbor-ai-label"
+Issues = "https://github.com/IT-Cru/thumbor-ai-label/issues"
+
+[tool.setuptools_scm]
+# The version is derived from git tags, so it is never hand-edited and can never
+# disagree with what was actually released.
+#
+# no-local-version strips the "+g1a2b3c4" local segment that setuptools-scm adds to
+# untagged builds. PyPI rejects any version carrying a local segment, so leaving the
+# default would make CI artefacts silently unpublishable.
+local_scheme = "no-local-version"
+# A tree with no tags, or a source tarball with no git metadata at all, falls back
+# rather than failing the build outright.
+fallback_version = "0.0.0.dev0"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+thumbor_ai_label = ["icons/*.png", "icons/*/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+# Narrowly silence Thumbor's own utcnow/utcfromtimestamp deprecations so warnings
+# raised by this package stay visible. Not a blanket ignore.
+filterwarnings = [
+    "error::DeprecationWarning:thumbor_ai_label",
+    "ignore:datetime.datetime.utc:DeprecationWarning:thumbor",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
