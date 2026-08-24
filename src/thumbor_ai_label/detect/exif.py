@@ -92,7 +92,11 @@ def _decode_value(tag: int, field_type: int, raw: bytes, endian: str) -> str:
     if field_type == TYPE_ASCII:
         return raw.split(b"\x00", 1)[0].decode("utf-8", errors="replace").strip()
 
-    if field_type == TYPE_UNDEFINED and tag == TAG_USER_COMMENT:
+    if tag == TAG_USER_COMMENT and field_type in (TYPE_UNDEFINED, TYPE_BYTE):
+        # The spec says UserComment is UNDEFINED, but Pillow writes it as BYTE and
+        # both turn up in real files. The payload is identical either way, so accept
+        # both rather than silently skipping half the encoders in the world.
+        #
         # UserComment is prefixed by an 8-byte character-set marker.
         for marker, encoding in _COMMENT_CHARSETS:
             if raw[:8] == marker:

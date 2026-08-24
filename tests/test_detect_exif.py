@@ -283,3 +283,39 @@ def test_a_tag_of_an_unhandled_type_is_ignored():
     """Only ASCII, the UserComment blob and the UTF-16 XP tags carry readable text."""
     blob = build_tiff([(TAG_SOFTWARE, 3, struct.pack("<HH", 1, 2))])  # SHORT
     assert detector.detect(scanned(blob)) is None
+
+
+class TestUserCommentFieldTypes:
+    """The spec says UNDEFINED; real encoders disagree.
+
+    Caught by the test-image corpus, not by hand-built fixtures - those all used the
+    spec-conformant type, so the gap was invisible until real encoder output hit it.
+    """
+
+    PROMPT = "Steps: 20, Sampler: Euler, Model: Stable Diffusion XL"
+
+    @pytest.mark.parametrize("field_type", [7, 1], ids=["UNDEFINED (spec)", "BYTE (Pillow)"])
+    def test_both_field_types_are_read(self, field_type):
+        blob = build_tiff([], sub=[(detector.TAG_USER_COMMENT, field_type, user_comment(self.PROMPT))])
+        found = detector.detect(scanned(blob))
+        assert found is not None, "UserComment as type {} was skipped".format(field_type)
+        assert found.source_type is SourceType.AI_GENERATED
+
+    def test_a_real_pillow_written_user_comment_round_trips(self):
+        PIL = pytest.importorskip("PIL")
+        import io
+
+        from PIL import Image
+
+        from thumbor_ai_label.scan import scan
+
+        image = Image.new("RGB", (16, 16))
+        data = image.getexif()
+        sub = data.get_ifd(0x8769)
+        sub[detector.TAG_USER_COMMENT] = b"ASCII\x00\x00\x00" + self.PROMPT.encode()
+        buf = io.BytesIO()
+        image.save(buf, "JPEG", exif=data)
+
+        found = detector.detect(scan(buf.getvalue()))
+        assert found is not None
+        assert found.generator == "Stable Diffusion"
