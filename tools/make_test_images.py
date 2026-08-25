@@ -2,7 +2,7 @@
 
     python tools/make_test_images.py
 
-Writes to testdata/ : the images, plus manifest.json recording what each one is
+Writes to tests/images/ : the images, plus manifest.json recording what each one is
 expected to produce. `tools/verify_test_images.py` checks reality against that.
 
 These images are SYNTHETIC. They are geometric patterns carrying hand-written
@@ -26,7 +26,7 @@ import struct
 
 from PIL import Image, ImageDraw, ImageFont
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "testdata"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "tests" / "images"
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 IPTC_NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"

@@ -8,3 +8,5 @@ build/
 .idea/
 .vscode/
 *.zip
+contact-sheet-*.png
+.DS_Store

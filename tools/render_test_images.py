@@ -24,7 +24,7 @@ from thumbor.importer import Importer
 import thumbor_ai_label.config  # noqa: F401
 from thumbor_ai_label.label import apply
 
-TESTDATA = pathlib.Path(__file__).resolve().parent.parent / "testdata"
+CORPUS = pathlib.Path(__file__).resolve().parent.parent / "tests" / "images"
 
 
 def render(payload: bytes, width: int, icon_set: str, policy: str) -> Image.Image:
@@ -62,10 +62,10 @@ def main() -> None:
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
-    manifest = json.loads((TESTDATA / "manifest.json").read_text())
+    manifest = json.loads((CORPUS / "manifest.json").read_text())
     rendered = []
     for entry in manifest:
-        payload = (TESTDATA / entry["file"]).read_bytes()
+        payload = (CORPUS / entry["file"]).read_bytes()
         rendered.append((entry, render(payload, args.width, args.icon_set, args.policy)))
 
     pad, caption_h = 12, 20
@@ -103,8 +103,10 @@ def main() -> None:
             x += cell_w + pad
         y += row_heights[row_index] + pad
 
-    out = pathlib.Path(args.out) if args.out else TESTDATA / "contact-sheet-{}-{}.png".format(
-        args.icon_set, args.policy
+    # Default to the working directory, not the corpus: a generated sheet is an
+    # artefact, and dropping it among the fixtures would make it look like one.
+    out = pathlib.Path(args.out) if args.out else pathlib.Path(
+        "contact-sheet-{}-{}.png".format(args.icon_set, args.policy)
     )
     sheet.save(out)
     print("wrote {} ({}x{})".format(out, sheet.width, sheet.height))

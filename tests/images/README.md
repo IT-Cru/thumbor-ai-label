@@ -27,7 +27,7 @@ Point a Thumbor file loader at this directory:
 
 ```python
 LOADER = "thumbor.loaders.file_loader"
-FILE_LOADER_ROOT_PATH = "/path/to/testdata"
+FILE_LOADER_ROOT_PATH = "/path/to/thumbor-ai-label/tests/images"
 ```
 
 Then request any of them, e.g. `/unsafe/600x400/01-iptc-ai-generated.jpg`.
