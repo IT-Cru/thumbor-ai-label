@@ -82,6 +82,30 @@ Config.define(
     GROUP,
 )
 
+Config.define(
+    "AI_LABEL_META",
+    True,
+    "Publish the provenance verdict on Thumbor's /meta/ endpoint, under an "
+    "'ai_label' key. This is how a CMS obtains the verdict to write alt text or an "
+    "ARIA label, which is what EU AI Act Article 50(5) accessibility asks for.",
+    GROUP,
+)
+Config.define(
+    "AI_LABEL_META_VERBOSE",
+    False,
+    "Include detector, confidence, evidence and generator in the meta payload. Off "
+    "by default: evidence can carry a fragment of a generation prompt read out of "
+    "EXIF UserComment, and the meta endpoint is publicly reachable.",
+    GROUP,
+)
+Config.define(
+    "AI_LABEL_META_DISCLOSURES",
+    None,
+    "Override the human-readable disclosure strings per state, e.g. "
+    "{'ai_generated': 'KI-generiert'}. None uses the English defaults.",
+    GROUP,
+)
+
 SETTINGS_ATTR = "_ai_label_settings"
 
 

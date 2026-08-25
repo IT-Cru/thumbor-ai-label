@@ -63,6 +63,11 @@ def draw(context, engine, decision: Decision) -> bool:
     if already_drawn(engine):
         return False
 
+    if getattr(getattr(context, "request", None), "meta", False):
+        # A /meta/ response is JSON. There are no pixels to mark, and the engine at
+        # this point is Thumbor's JSONEngine wrapping the real one.
+        return False
+
     image = getattr(engine, "image", None)
     if image is None:
         logger.warning("[AiLabel] engine %r exposes no PIL image; skipping", type(engine).__name__)

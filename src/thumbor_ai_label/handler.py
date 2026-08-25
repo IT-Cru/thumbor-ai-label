@@ -14,7 +14,10 @@ from thumbor.filters import PHASE_POST_TRANSFORM
 from thumbor.handlers.imaging import ImagingHandler
 from thumbor.utils import logger
 
+from . import meta
 from .filters.ai_label import Filter as AiLabelFilter
+from .label import decide_for_request
+from .state import get_decision
 
 
 class AlwaysOnFiltersFactory:
@@ -67,3 +70,23 @@ class AiLabelImagingHandler(ImagingHandler):
         self.context.filters_factory = AlwaysOnFiltersFactory(
             self.context.filters_factory
         )
+
+    async def after_transform(self):
+        await super().after_transform()
+
+        # Safety net for the meta payload. The label filter normally computes the
+        # verdict, but _load_results runs in a worker thread and cannot await, so it
+        # has to already exist by then. decide_for_request is memoised, making this
+        # free in the normal case.
+        request = getattr(self.context, "request", None)
+        if getattr(request, "meta", False) and get_decision(self.context) is None:
+            try:
+                await decide_for_request(self.context)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("[AiLabel] could not evaluate provenance for /meta/")
+
+    def _load_results(self, context):
+        results, content_type = super()._load_results(context)
+        if getattr(context.request, "meta", False):
+            results = meta.inject(context, results)
+        return results, content_type

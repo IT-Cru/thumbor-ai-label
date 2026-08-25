@@ -4,8 +4,8 @@ A Thumbor plugin. It reads AI provenance metadata from the source image and
 composites an AI label as a watermark layer on every generated image style.
 
 > **Status: feature-complete for the read-and-label scope.** Scanning, detection,
-> policy, icons, compositing, the filter and always-on wiring all work end to end,
-> verified over real HTTP requests through Thumbor's own app.
+> policy, icons, compositing, the filter, always-on wiring and the meta endpoint all
+> work end to end, verified over real HTTP requests through Thumbor's own app.
 
 ## Why this exists — EU AI Act Article 50
 
@@ -48,7 +48,7 @@ filter — not removable through URL manipulation.
 | Distinguishes generated from modified | ✅ Separate states and icons |
 | Official EU icon set | ✅ Bundled — `AI_LABEL_ICON_SET = "eu"` |
 | Icon paired with a text label | ✅ The EU labels read "AI GENERATED" / "AI MODIFIED" |
-| Alt text / ARIA for assistive tech | ❌ **Not possible from Thumbor** — see below |
+| Alt text / ARIA for assistive tech | ⚠️ Verdict published on `/meta/`; your CMS must use it |
 | Deciding *which* images are AI | ⚠️ Only detects what metadata declares |
 | Deep-fake scope and creative exemption | ⚠️ Over-labels — see below |
 
@@ -99,14 +99,14 @@ means putting an AI-adjacent mark on genuine photographs. That is a defensive po
 not a legal requirement, and it may mislead readers in its own way. Consider
 `AI_LABEL_POLICY = "relaxed"`.
 
-**Accessibility still cannot be solved here.** Bundling the official icons does not
-change this. Article 50(5) requires disclosure to meet
+**Accessibility needs your CMS to cooperate.** Article 50(5) requires disclosure to meet
 accessibility requirements, and the Commission asks implementers to expose the label
 through alt text or ARIA. A label burnt into pixels is invisible to a screen reader,
-and Thumbor serves images — it does not control the surrounding HTML. Closing this gap
-needs the verdict handed to whatever writes the markup. That is what the planned meta
-endpoint is for, and it is why that endpoint is a compliance item rather than a
-convenience.
+and Thumbor serves images — it does not control the surrounding HTML.
+
+The plugin closes its half: the verdict is published on Thumbor's `/meta/` endpoint (see
+below). Your CMS has to read it and write the alt text or ARIA label. Nothing this
+plugin can do will make a burnt-in label reach a screen reader on its own.
 
 ### Scope: this plugin over-labels
 
@@ -455,6 +455,84 @@ empty detector list — because "no labels" and "no AI images" look identical fr
 outside.
 
 
+## Component 5 — the meta endpoint
+
+Thumbor's `/meta/` endpoint returns JSON describing what an image request would
+produce. The verdict is published there under a top-level `ai_label` key:
+
+```
+GET /unsafe/meta/600x400/photo.jpg
+```
+
+```json
+{
+  "thumbor": { "source": {...}, "operations": [...], "target": {...} },
+  "ai_label": {
+    "label": "ai_generated",
+    "reason": "ai_asserted",
+    "policy": "strict",
+    "labelled": true,
+    "disclosure": "AI generated"
+  }
+}
+```
+
+A sibling of `thumbor` rather than a member of it — that namespace is Thumbor's, and a
+future key of theirs must not be able to collide with ours.
+
+### `labelled` is the field that matters
+
+It says whether an image request at those dimensions would actually carry a visible
+label. Below `AI_LABEL_MIN_IMAGE_SIZE` nothing is drawn, so:
+
+```json
+{ "label": "ai_generated", "labelled": false }
+```
+
+means the image *is* AI but the pixels do not say so — and the disclosure you write into
+the DOM is the **only** disclosure, not a supplement to a visible one. Detection and
+drawing are separate decisions and this reports both.
+
+### Diagnostics are off by default
+
+`detector`, `confidence`, `evidence` and `generator` appear only with
+`AI_LABEL_META_VERBOSE = True`. `evidence` can carry a fragment of a generation prompt
+read out of EXIF `UserComment`, and this endpoint is publicly reachable.
+
+### Localisation
+
+`disclosure` is English by default. Override per state:
+
+```python
+AI_LABEL_META_DISCLOSURES = {
+    "ai_generated": "KI-generiert",
+    "ai_manipulated": "KI-bearbeitet",
+    "unknown": "Herkunft nicht feststellbar",
+}
+```
+
+Consumers wanting full control should map the machine-readable `label` themselves and
+ignore `disclosure` entirely.
+
+Note that the `unknown` disclosure is deliberately not phrased as an AI claim. Someone
+relying on a screen reader cannot judge the image for themselves, and telling them it is
+AI on evidence that only says "provenance could not be established" would mislead
+exactly the people this field exists to serve.
+
+### How it is wired
+
+`JSONEngine.read()` builds the response and offers no hook, so the handler wraps
+`_load_results` and the verdict is merged into the serialised payload — a JSON
+round-trip, not a string splice, so a change to Thumbor's own payload cannot corrupt it.
+JSONP via `META_CALLBACK_NAME` is unwrapped and rewrapped.
+
+`_load_results` runs in Thumbor's thread pool, off the event loop, so nothing there can
+await. The verdict is read from where the label filter already stored it, and
+`after_transform` guarantees it exists first. Injection failure returns the original
+response untouched: a broken labelling feature must not break an endpoint clients rely
+on.
+
+
 ## Configuration reference
 
 | Key | Default | Meaning |
@@ -473,6 +551,9 @@ outside.
 | `AI_LABEL_MARGIN_RATIO` | `0.04` | Margin as a fraction of the shorter edge |
 | `AI_LABEL_MIN_MARGIN` | `3` | Smallest margin, in pixels |
 | `AI_LABEL_STRICT_ERRORS` | `False` | Make labelling failures fatal |
+| `AI_LABEL_META` | `True` | Publish the verdict on `/meta/` |
+| `AI_LABEL_META_VERBOSE` | `False` | Include detector, confidence, evidence, generator |
+| `AI_LABEL_META_DISCLOSURES` | `None` | Per-state disclosure strings; `None` uses English |
 
 
 ## Known constraint
