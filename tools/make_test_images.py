@@ -23,6 +23,8 @@ import io
 import json
 import pathlib
 import struct
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -132,25 +134,32 @@ TAG_MAKE = 0x010F
 TAG_MODEL = 0x0110
 
 
-# Each case: (filename, builder, description, expected-strict, expected-relaxed)
-# Expected values are the `label` state, or None for "no label drawn".
-CASES = []
+@dataclass(frozen=True)
+class Case:
+    """One test image: how to build it, and what it should produce.
 
+    Expected values are the resulting `label` state, or None for "no label drawn".
+    Both policies are always stated explicitly rather than defaulting one to the
+    other: the pair is the point of the table, and cases 13 and 14 exist precisely
+    because they diverge.
+    """
 
-def case(name, description, strict, relaxed, notes=""):
-    def register(builder):
-        CASES.append(
-            {
-                "file": name,
-                "description": description,
-                "expected": {"strict": strict, "relaxed": relaxed},
-                "notes": notes,
-                "builder": builder,
-            }
-        )
-        return builder
+    file: str
+    description: str
+    strict: str | None
+    relaxed: str | None
+    build: Callable[[], bytes]
+    notes: str = ""
 
-    return register
+    def as_manifest_entry(self, payload: bytes, size: tuple[int, int]) -> dict:
+        return {
+            "file": self.file,
+            "description": self.description,
+            "size": list(size),
+            "bytes": len(payload),
+            "expected": {"strict": self.strict, "relaxed": self.relaxed},
+            "notes": self.notes,
+        }
 
 
 def iptc_jpeg(index, term, caption, full_uri=True, size=(800, 600), dark=False):
@@ -158,82 +167,20 @@ def iptc_jpeg(index, term, caption, full_uri=True, size=(800, 600), dark=False):
     return encode(image, "JPEG", xmp=xmp_packet(term, full_uri=full_uri))
 
 
-# -- A. IPTC DigitalSourceType, the primary signal ------------------------
-
-case("01-iptc-ai-generated.jpg", "IPTC trainedAlgorithmicMedia", "ai_generated", "ai_generated")(
-    lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "01 expect: AI GENERATED")
-)
-case(
-    "02-iptc-ai-composite.jpg",
-    "IPTC compositeWithTrainedAlgorithmicMedia",
-    "ai_composite",
-    "ai_composite",
-)(lambda: iptc_jpeg(1, "compositeWithTrainedAlgorithmicMedia", "02 expect: AI composite"))
-case("03-iptc-ai-modified.jpg", "IPTC algorithmicallyEnhanced", "ai_manipulated", "ai_manipulated")(
-    lambda: iptc_jpeg(2, "algorithmicallyEnhanced", "03 expect: AI MODIFIED")
-)
-case(
-    "04-iptc-camera.jpg",
-    "IPTC digitalCapture - a real photograph",
-    None,
-    None,
-    "A positive not-AI assertion. Must never be labelled, under either policy.",
-)(lambda: iptc_jpeg(3, "digitalCapture", "04 expect: NO label"))
-case("05-iptc-digital-art.jpg", "IPTC digitalArt - human-made digital work", None, None)(
-    lambda: iptc_jpeg(4, "digitalArt", "05 expect: NO label")
-)
-case(
-    "06-iptc-composite-capture.jpg", "IPTC compositeCapture - composite of real photos", None, None
-)(lambda: iptc_jpeg(0, "compositeCapture", "06 expect: NO label"))
-case(
-    "07-iptc-unrecognised-term.jpg",
-    "IPTC term this build does not know",
-    "unknown",
-    "unknown",
-    "An unfamiliar term must read as unknown, never as a clean bill of health.",
-)(lambda: iptc_jpeg(1, "quantumHolographicMedia", "07 expect: UNKNOWN"))
-case(
-    "08-iptc-bare-term.jpg",
-    "DigitalSourceType as a bare term, no CV URI",
-    "ai_generated",
-    "ai_generated",
-)(lambda: iptc_jpeg(2, "trainedAlgorithmicMedia", "08 expect: AI GENERATED", full_uri=False))
-
-# -- B. EXIF vendor hints, the weak fallback ------------------------------
+# -- Builders needing more than an expression -----------------------------
 
 
-@case(
-    "09-exif-midjourney.jpg",
-    "EXIF Software names a known generator",
-    "ai_generated",
-    "ai_generated",
-    "LOW confidence: inferred from a tool name, not read from a provenance field.",
-)
-def _():
+def _exif_midjourney() -> bytes:
     image = base_image(3, caption="09 expect: AI GENERATED (low conf)")
     return encode(image, "JPEG", exif=exif_for(image, {TAG_SOFTWARE: "Midjourney v6.1"}))
 
 
-@case(
-    "10-exif-photoshop-only.jpg",
-    "EXIF Software is an ordinary editor",
-    "unknown",
-    None,
-    "PRECISION CHECK. Photoshop must not match: most images through it are not AI.",
-)
-def _():
+def _exif_photoshop() -> bytes:
     image = base_image(4, caption="10 expect: strict UNKNOWN / relaxed NO label")
     return encode(image, "JPEG", exif=exif_for(image, {TAG_SOFTWARE: "Adobe Photoshop 25.0"}))
 
 
-@case(
-    "11-exif-usercomment.jpg",
-    "Generation parameters in EXIF UserComment",
-    "ai_generated",
-    "ai_generated",
-    "UserComment lives in the Exif sub-IFD; IFD0 alone would miss it.",
-)
-def _():
+def _exif_user_comment() -> bytes:
     image = base_image(0, caption="11 expect: AI GENERATED (low conf)")
     data = image.getexif()
     data[TAG_MAKE] = "TestCorp"
@@ -242,52 +189,13 @@ def _():
     return encode(image, "JPEG", exif=data)
 
 
-# -- C. Where the two policies diverge ------------------------------------
-
-case(
-    "12-no-metadata.jpg",
-    "No metadata of any kind",
-    "unknown",
-    None,
-    "The normal state of a pre-2023 archive.",
-)(lambda: encode(base_image(1, caption="12 expect: strict UNKNOWN / relaxed NO label"), "JPEG"))
-
-
-@case(
-    "13-exif-only-camera.jpg",
-    "EXIF camera tags only, no XMP",
-    "unknown",
-    None,
-    "THE KEY ROW. EXIF carries no provenance field, so relaxed stays silent. "
-    "Counting it would label essentially every camera photograph ever taken.",
-)
-def _():
+def _exif_only_camera() -> bytes:
     image = base_image(2, caption="13 expect: strict UNKNOWN / relaxed NO label")
-    return encode(
-        image, "JPEG", exif=exif_for(image, {TAG_MAKE: "NIKON CORPORATION", TAG_MODEL: "NIKON Z 6"})
-    )
+    tags = {TAG_MAKE: "NIKON CORPORATION", TAG_MODEL: "NIKON Z 6"}
+    return encode(image, "JPEG", exif=exif_for(image, tags))
 
 
-case(
-    "14-xmp-without-sourcetype.jpg",
-    "XMP present but no DigitalSourceType",
-    "unknown",
-    "unknown",
-    "A provenance-capable block that says nothing: where a stripped assertion shows up. "
-    "Labelled under BOTH policies, unlike case 13.",
-)(
-    lambda: encode(
-        base_image(3, caption="14 expect: UNKNOWN under both policies"),
-        "JPEG",
-        xmp=xmp_packet(None, extra="<dc:creator>Test Suite</dc:creator>"),
-    )
-)
-
-# -- D. Container coverage ------------------------------------------------
-
-
-@case("15-png-iptc-ai.png", "PNG carrying XMP in an iTXt chunk", "ai_generated", "ai_generated")
-def _():
+def _png_itxt() -> bytes:
     from PIL.PngImagePlugin import PngInfo
 
     info = PngInfo()
@@ -295,23 +203,7 @@ def _():
     return encode(base_image(4, caption="15 PNG expect: AI GENERATED"), "PNG", pnginfo=info)
 
 
-case("16-webp-iptc-ai.webp", "WebP carrying XMP", "ai_generated", "ai_generated")(
-    lambda: encode(
-        base_image(0, caption="16 WebP expect: AI GENERATED"),
-        "WEBP",
-        xmp=xmp_packet("trainedAlgorithmicMedia"),
-    )
-)
-
-
-@case(
-    "17-png-raw-profile-ai.png",
-    "PNG with ImageMagick hex-wrapped XMP",
-    "ai_generated",
-    "ai_generated",
-    "How metadata survives an ImageMagick step - common in editorial pipelines.",
-)
-def _():
+def _png_raw_profile() -> bytes:
     from PIL.PngImagePlugin import PngInfo
 
     packet = xmp_packet("trainedAlgorithmicMedia")
@@ -322,18 +214,7 @@ def _():
     return encode(image, "PNG", pnginfo=info)
 
 
-# -- E. Edge cases --------------------------------------------------------
-
-
-@case(
-    "18-contradiction.jpg",
-    "XMP says camera, EXIF says Midjourney",
-    None,
-    None,
-    "The standardised HIGH-confidence assertion wins and short-circuits. Change this "
-    "behaviour if you would rather surface the conflict.",
-)
-def _():
+def _contradiction() -> bytes:
     image = base_image(2, caption="18 expect: NO label (XMP wins)")
     return encode(
         image,
@@ -343,19 +224,13 @@ def _():
     )
 
 
-@case(
-    "19-extended-xmp-ai.jpg",
-    "Extended XMP split across APP1 segments",
-    "ai_generated",
-    "ai_generated",
-    "Over ~64 KB, XMP must be split. Hand-built: Pillow refuses to write this.",
-)
-def _():
+def _extended_xmp() -> bytes:
     jpeg = encode(base_image(3, caption="19 extended XMP expect: AI GENERATED"), "JPEG")
     packet = xmp_packet("trainedAlgorithmicMedia")
     filler = b"<pad>" + b"x" * 90_000 + b"</pad>"
     guid = b"A1B2C3D4E5F60718293A4B5C6D7E8F90"
     chunks = [filler[i : i + 60000] for i in range(0, len(filler), 60000)]
+
     segments = [XMP_SIG + packet]
     offset = 0
     for chunk in chunks:
@@ -366,49 +241,231 @@ def _():
     return splice_app1(jpeg, segments)
 
 
-@case(
-    "20-corrupt-xmp.jpg",
-    "Truncated, unparseable XMP packet",
-    "unknown",
-    "unknown",
-    "Must not raise. A hostile file yields no claim, and the policy decides.",
-)
-def _():
+def _corrupt_xmp() -> bytes:
     jpeg = encode(base_image(4, caption="20 corrupt XMP expect: UNKNOWN"), "JPEG")
-    return splice_app1(jpeg, [XMP_SIG + b'<?xpacket begin=""?><x:xmpmeta><rdf:RDF><rdf:Desc'])
+    truncated = b'<?xpacket begin=""?><x:xmpmeta><rdf:RDF><rdf:Desc'
+    return splice_app1(jpeg, [XMP_SIG + truncated])
 
 
-case(
-    "21-small-thumbnail.jpg",
-    "AI image below the minimum label size",
-    "ai_generated",
-    "ai_generated",
-    "DETECTION says ai_generated, but NO label is drawn: 80 px is under the 120 px floor. "
-    "Verify by eye, not by the manifest.",
-)(lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "21 small", size=(140, 80)))
-case(
-    "22-panorama-ai.jpg",
-    "Very wide AI image",
-    "ai_generated",
-    "ai_generated",
-    "Label size tracks the SHORTER edge, so it should not look tiny here.",
-)(
-    lambda: iptc_jpeg(
-        1, "trainedAlgorithmicMedia", "22 panorama expect: AI GENERATED", size=(2000, 500)
-    )
-)
-case("23-tall-portrait-ai.jpg", "Very tall AI image", "ai_generated", "ai_generated")(
-    lambda: iptc_jpeg(
-        2, "trainedAlgorithmicMedia", "23 portrait expect: AI GENERATED", size=(500, 1400)
-    )
-)
-case(
-    "24-dark-ai.jpg",
-    "Dark AI image",
-    "ai_generated",
-    "ai_generated",
-    "For checking contrast, and for trying AI_LABEL_ICON_SET = 'eu-white'.",
-)(lambda: iptc_jpeg(3, "trainedAlgorithmicMedia", "24 dark expect: AI GENERATED", dark=True))
+# -- The table ------------------------------------------------------------
+
+CASES: list[Case] = [
+    Case(
+        file="01-iptc-ai-generated.jpg",
+        description="IPTC trainedAlgorithmicMedia",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "01 expect: AI GENERATED"),
+    ),
+    Case(
+        file="02-iptc-ai-composite.jpg",
+        description="IPTC compositeWithTrainedAlgorithmicMedia",
+        strict="ai_composite",
+        relaxed="ai_composite",
+        build=lambda: iptc_jpeg(
+            1, "compositeWithTrainedAlgorithmicMedia", "02 expect: AI composite"
+        ),
+    ),
+    Case(
+        file="03-iptc-ai-modified.jpg",
+        description="IPTC algorithmicallyEnhanced",
+        strict="ai_manipulated",
+        relaxed="ai_manipulated",
+        build=lambda: iptc_jpeg(2, "algorithmicallyEnhanced", "03 expect: AI MODIFIED"),
+    ),
+    Case(
+        file="04-iptc-camera.jpg",
+        description="IPTC digitalCapture - a real photograph",
+        strict=None,
+        relaxed=None,
+        build=lambda: iptc_jpeg(3, "digitalCapture", "04 expect: NO label"),
+        notes="A positive not-AI assertion. Must never be labelled, under either policy.",
+    ),
+    Case(
+        file="05-iptc-digital-art.jpg",
+        description="IPTC digitalArt - human-made digital work",
+        strict=None,
+        relaxed=None,
+        build=lambda: iptc_jpeg(4, "digitalArt", "05 expect: NO label"),
+    ),
+    Case(
+        file="06-iptc-composite-capture.jpg",
+        description="IPTC compositeCapture - composite of real photos",
+        strict=None,
+        relaxed=None,
+        build=lambda: iptc_jpeg(0, "compositeCapture", "06 expect: NO label"),
+    ),
+    Case(
+        file="07-iptc-unrecognised-term.jpg",
+        description="IPTC term this build does not know",
+        strict="unknown",
+        relaxed="unknown",
+        build=lambda: iptc_jpeg(1, "quantumHolographicMedia", "07 expect: UNKNOWN"),
+        notes="An unfamiliar term must read as unknown, never as a clean bill of health.",
+    ),
+    Case(
+        file="08-iptc-bare-term.jpg",
+        description="DigitalSourceType as a bare term, no CV URI",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(
+            2, "trainedAlgorithmicMedia", "08 expect: AI GENERATED", full_uri=False
+        ),
+    ),
+    Case(
+        file="09-exif-midjourney.jpg",
+        description="EXIF Software names a known generator",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_exif_midjourney,
+        notes="LOW confidence: inferred from a tool name, not read from a provenance field.",
+    ),
+    Case(
+        file="10-exif-photoshop-only.jpg",
+        description="EXIF Software is an ordinary editor",
+        strict="unknown",
+        relaxed=None,
+        build=_exif_photoshop,
+        notes="PRECISION CHECK. Photoshop must not match: most images through it are not AI.",
+    ),
+    Case(
+        file="11-exif-usercomment.jpg",
+        description="Generation parameters in EXIF UserComment",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_exif_user_comment,
+        notes="UserComment lives in the Exif sub-IFD; IFD0 alone would miss it.",
+    ),
+    Case(
+        file="12-no-metadata.jpg",
+        description="No metadata of any kind",
+        strict="unknown",
+        relaxed=None,
+        build=lambda: encode(
+            base_image(1, caption="12 expect: strict UNKNOWN / relaxed NO label"), "JPEG"
+        ),
+        notes="The normal state of a pre-2023 archive.",
+    ),
+    Case(
+        file="13-exif-only-camera.jpg",
+        description="EXIF camera tags only, no XMP",
+        strict="unknown",
+        relaxed=None,
+        build=_exif_only_camera,
+        notes=(
+            "THE KEY ROW. EXIF carries no provenance field, so relaxed stays silent. "
+            "Counting it would label essentially every camera photograph ever taken."
+        ),
+    ),
+    Case(
+        file="14-xmp-without-sourcetype.jpg",
+        description="XMP present but no DigitalSourceType",
+        strict="unknown",
+        relaxed="unknown",
+        build=lambda: encode(
+            base_image(3, caption="14 expect: UNKNOWN under both policies"),
+            "JPEG",
+            xmp=xmp_packet(None, extra="<dc:creator>Test Suite</dc:creator>"),
+        ),
+        notes=(
+            "A provenance-capable block that says nothing: where a stripped assertion shows up. "
+            "Labelled under BOTH policies, unlike case 13."
+        ),
+    ),
+    Case(
+        file="15-png-iptc-ai.png",
+        description="PNG carrying XMP in an iTXt chunk",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_png_itxt,
+    ),
+    Case(
+        file="16-webp-iptc-ai.webp",
+        description="WebP carrying XMP",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: encode(
+            base_image(0, caption="16 WebP expect: AI GENERATED"),
+            "WEBP",
+            xmp=xmp_packet("trainedAlgorithmicMedia"),
+        ),
+    ),
+    Case(
+        file="17-png-raw-profile-ai.png",
+        description="PNG with ImageMagick hex-wrapped XMP",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_png_raw_profile,
+        notes="How metadata survives an ImageMagick step - common in editorial pipelines.",
+    ),
+    Case(
+        file="18-contradiction.jpg",
+        description="XMP says camera, EXIF says Midjourney",
+        strict=None,
+        relaxed=None,
+        build=_contradiction,
+        notes=(
+            "The standardised HIGH-confidence assertion wins and short-circuits. Change "
+            "this behaviour if you would rather surface the conflict."
+        ),
+    ),
+    Case(
+        file="19-extended-xmp-ai.jpg",
+        description="Extended XMP split across APP1 segments",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_extended_xmp,
+        notes="Over ~64 KB, XMP must be split. Hand-built: Pillow refuses to write this.",
+    ),
+    Case(
+        file="20-corrupt-xmp.jpg",
+        description="Truncated, unparseable XMP packet",
+        strict="unknown",
+        relaxed="unknown",
+        build=_corrupt_xmp,
+        notes="Must not raise. A hostile file yields no claim, and the policy decides.",
+    ),
+    Case(
+        file="21-small-thumbnail.jpg",
+        description="AI image below the minimum label size",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "21 small", size=(140, 80)),
+        notes=(
+            "DETECTION says ai_generated, but NO label is drawn: 80 px is under the 120 px floor. "
+            "Verify by eye, not by the manifest."
+        ),
+    ),
+    Case(
+        file="22-panorama-ai.jpg",
+        description="Very wide AI image",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(
+            1, "trainedAlgorithmicMedia", "22 panorama expect: AI GENERATED", size=(2000, 500)
+        ),
+        notes="Label size tracks the SHORTER edge, so it should not look tiny here.",
+    ),
+    Case(
+        file="23-tall-portrait-ai.jpg",
+        description="Very tall AI image",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(
+            2, "trainedAlgorithmicMedia", "23 portrait expect: AI GENERATED", size=(500, 1400)
+        ),
+    ),
+    Case(
+        file="24-dark-ai.jpg",
+        description="Dark AI image",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=lambda: iptc_jpeg(
+            3, "trainedAlgorithmicMedia", "24 dark expect: AI GENERATED", dark=True
+        ),
+        notes="For checking contrast, and for trying AI_LABEL_ICON_SET = 'eu-white'.",
+    ),
+]
 
 
 def main() -> None:
@@ -416,32 +473,16 @@ def main() -> None:
     manifest = []
 
     for entry in CASES:
-        payload = entry["builder"]()
-        path = OUT / entry["file"]
-        path.write_bytes(payload)
+        payload = entry.build()
+        (OUT / entry.file).write_bytes(payload)
 
         with Image.open(io.BytesIO(payload)) as probe:
-            dimensions = probe.size
+            size = probe.size
 
-        manifest.append(
-            {
-                "file": entry["file"],
-                "description": entry["description"],
-                "size": list(dimensions),
-                "bytes": len(payload),
-                "expected": entry["expected"],
-                "notes": entry["notes"],
-            }
-        )
+        manifest.append(entry.as_manifest_entry(payload, size))
         print(
-            "  {:<32} {:>5}x{:<5} {:>7} B   strict={:<13} relaxed={}".format(
-                entry["file"],
-                dimensions[0],
-                dimensions[1],
-                len(payload),
-                str(entry["expected"]["strict"]),
-                str(entry["expected"]["relaxed"]),
-            )
+            f"  {entry.file:<32} {size[0]:>5}x{size[1]:<5} {len(payload):>7} B   "
+            f"strict={entry.strict!s:<13} relaxed={entry.relaxed}"
         )
 
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
