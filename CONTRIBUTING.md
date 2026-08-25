@@ -54,18 +54,24 @@ that is a more valuable contribution than a patch. Open an issue and attach it.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e '.[dev,thumbor]'
+.venv/bin/pre-commit install
 ```
+
+`pre-commit install` is worth the ten seconds: it runs the lint and format gates before
+each commit rather than after, in CI. CI runs `pre-commit run --all-files`, so the ruff
+version pinned in `.pre-commit-config.yaml` is the single source of truth — your machine
+and CI cannot disagree.
 
 ```bash
 .venv/bin/python -m pytest --cov=thumbor_ai_label --cov-report=term-missing
 ```
 
 ```bash
-.venv/bin/ruff check . && .venv/bin/ruff format .
+.venv/bin/pre-commit run --all-files
 ```
 
-CI runs `ruff check`, `ruff format --check`, and the suite on Python 3.10 through 3.14
-with `--cov-fail-under=100`. **All three are enforced, not aspirational.**
+CI runs that, plus the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`.
+**Both are enforced, not aspirational.**
 
 Formatting is `ruff format` with the default style at a 100-column limit. Do not hand-
 tune layout — run the formatter and take what it gives you. That is the point of having
@@ -77,7 +83,8 @@ Two things that catch people out:
   comments in a README example will fail CI, because the formatter normalises them to two
   spaces. Documented examples are held to the same style as the code.
 - **`ruff check` and `ruff format --check` are separate gates.** Passing the first says
-  nothing about the second. Run both, or just run `ruff format` and let it fix things. If a line cannot be reached by a test, that is usually a
+  nothing about the second. Running pre-commit covers both, which is the reason to
+  install it. If a line cannot be reached by a test, that is usually a
 sign the line should not exist — several defensive branches were deleted during
 development for exactly that reason.
 

@@ -1,0 +1,26 @@
+# Runs the same gates as CI, before the commit rather than after it.
+#
+#     pip install pre-commit && pre-commit install
+#
+# CI runs `pre-commit run --all-files`, so the ruff version pinned below is the single
+# source of truth: local and CI cannot drift apart.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      # Lint and format are separate gates. Passing one says nothing about the other,
+      # and forgetting the second is what broke CI the first time round.
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml          # the CI workflow itself
+      - id: check-toml          # pyproject
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
