@@ -575,6 +575,13 @@ publishing pipeline rather than here.
 
 ## Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions are Apache-2.0 by submission and
+there is no CLA.
+
+The most useful contribution is not a patch: it is a **real image from a real AI tool**
+whose provenance this reads wrongly. Every fixture here is synthetic, and that limit has
+already hidden one genuine bug.
+
 ```bash
 python -m venv .venv && .venv/bin/pip install -e '.[dev,thumbor]'
 ```
