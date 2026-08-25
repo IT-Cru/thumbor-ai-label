@@ -208,14 +208,16 @@ skip image data by length arithmetic. Cost tracks metadata size, not image size:
 
 | Case | File | Median scan |
 |---|---|---|
-| 640×480 JPEG, XMP + EXIF | 0.1 MB | 12.4 µs |
-| 2000×1500 JPEG, XMP + EXIF | 1.5 MB | 12.4 µs |
-| 4000×3000 JPEG, XMP + EXIF | 6.5 MB | 12.3 µs |
-| 4000×3000 WebP, XMP + EXIF | 7.0 MB | 8.7 µs |
+| 640×480 JPEG, XMP + EXIF | 0.1 MB | 4.9 µs |
+| 2000×1500 JPEG, XMP + EXIF | 1.5 MB | 4.9 µs |
+| 4000×3000 JPEG, XMP + EXIF | 6.5 MB | 4.9 µs |
+| 4000×3000 WebP, XMP + EXIF | 7.0 MB | 3.6 µs |
 
-Figures are indicative rather than production numbers. What matters is the shape:
-flat against file size. `benchmarks/bench_scan.py` reproduces it, and a test asserts
-the flatness so a regression that starts reading image data fails the suite.
+**A 65× range in file size, no measurable change in scan time.** That flatness is the
+claim; the absolute microseconds are machine-specific and not worth quoting back.
+`tools/bench_scan.py` reproduces the table, and a test asserts the flatness, so a
+regression that starts reading image data fails the suite rather than quietly slowing
+things down.
 
 ### Handled beyond the obvious cases
 
