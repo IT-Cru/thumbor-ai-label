@@ -1,14 +1,14 @@
 # thumbor-ai-label
 
 [![CI](https://github.com/IT-Cru/thumbor-ai-label/actions/workflows/ci.yml/badge.svg)](https://github.com/IT-Cru/thumbor-ai-label/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.14-blue)](https://github.com/IT-Cru/thumbor-ai-label/blob/main/pyproject.toml)
 [![Thumbor](https://img.shields.io/badge/thumbor-7.8%2B-blue)](https://github.com/thumbor/thumbor)
-[![Licence](https://img.shields.io/badge/licence-Apache--2.0-green)](LICENSE)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-green)](https://github.com/IT-Cru/thumbor-ai-label/blob/main/LICENSE)
 
 A Thumbor plugin that reads AI provenance metadata from the source image and draws a
 visible AI label on every generated image style.
 
-![Three images: one labelled AI GENERATED, one labelled AI MODIFIED, one untouched](docs/example.png)
+![Three images: one labelled AI GENERATED, one labelled AI MODIFIED, one untouched](https://raw.githubusercontent.com/IT-Cru/thumbor-ai-label/main/docs/example.png)
 
 > **Pre-1.0.** Everything below works and is covered by tests, but the configuration
 > surface may still change.
@@ -105,9 +105,9 @@ to `FILTERS`, and put `ai_label()` in the URLs that should carry a label.
 
 ### Verifying it works
 
-[`tests/images/`](tests/images/) holds 24 images covering every detection and policy case,
+[`tests/images/`](https://github.com/IT-Cru/thumbor-ai-label/tree/main/tests/images) holds 24 images covering every detection and policy case,
 with a manifest of expected outcomes. Point a file loader at them and request a few — see
-[its README](tests/images/README.md).
+[its README](https://github.com/IT-Cru/thumbor-ai-label/blob/main/tests/images/README.md).
 
 ## Configuration
 
@@ -310,11 +310,11 @@ half by publishing the verdict on `/meta/`; something has to read it and write t
 already-cached images without invalidation.
 
 **No real-world AI images have been tested.** Every fixture is synthetic. See
-[CONTRIBUTING.md](CONTRIBUTING.md) — this is the most useful gap you could help close.
+[CONTRIBUTING.md](https://github.com/IT-Cru/thumbor-ai-label/blob/main/CONTRIBUTING.md) — this is the most useful gap you could help close.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for reporting a
+See [CONTRIBUTING.md](https://github.com/IT-Cru/thumbor-ai-label/blob/main/CONTRIBUTING.md), and [SECURITY.md](https://github.com/IT-Cru/thumbor-ai-label/blob/main/SECURITY.md) for reporting a
 vulnerability privately. Contributions are Apache-2.0 by submission and
 there is no CLA.
 
@@ -353,7 +353,7 @@ and nothing is withheld from anyone who does not.
 
 ## Licence
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](https://github.com/IT-Cru/thumbor-ai-label/blob/main/LICENSE).
 
 Use it for anything: private projects, internal tooling, commercial products, hosted
 services. No fee, no permission needed, no copyleft. Apache-2.0 also grants an express
@@ -363,4 +363,4 @@ Two obligations, both light: keep the licence and copyright notice with any copy
 distribute, and state what you changed if you ship a modified version.
 
 Bundled European Commission AI-labelling icons carry the Commission's own terms and are not
-covered by the above — see [THIRD-PARTY.md](THIRD-PARTY.md).
+covered by the above — see [THIRD-PARTY.md](https://github.com/IT-Cru/thumbor-ai-label/blob/main/THIRD-PARTY.md).
