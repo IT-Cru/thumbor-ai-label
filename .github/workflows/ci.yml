@@ -3,9 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+  # Called by release.yml so a tag is gated by the same matrix, not a copy of it.
+  workflow_call:
 
 jobs:
   lint:

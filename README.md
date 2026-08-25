@@ -328,7 +328,15 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev,thumbor]'
 ```
 
 Versions come from git tags via `setuptools-scm`; there is no version string to edit.
-Release by tagging: `git tag v0.1.0 && git push --tags`.
+Release by tagging:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+That runs the full test matrix, builds, and creates the GitHub Release automatically. The
+PyPI upload waits for a maintainer to approve it, because PyPI is append-only — a version
+number, once used, cannot be reused.
 
 ## Sponsoring
 
