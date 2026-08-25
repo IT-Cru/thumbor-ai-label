@@ -48,7 +48,12 @@ it, because every hand-built fixture used the conformant type. One piece of real
 output found it immediately.
 
 So: if you have an image whose provenance this reads wrongly — or fails to read at all —
-that is a more valuable contribution than a patch. Open an issue and attach it.
+that is a more valuable contribution than a patch.
+
+Contributed files live in [`tests/images/real/`](tests/images/real/), which has its own
+README covering what to check before attaching anything — real images carry GPS
+coordinates, creator names, and the prompt you typed, and this repository is public and
+permanent. Issue #2 tracks the ask.
 
 ## Setup
 
@@ -97,7 +102,10 @@ re-run it:
 |---|---|
 | `src/thumbor_ai_label/icons/*.png` | `tools/make_icons.py` |
 | `src/thumbor_ai_label/icons/eu*/` | `tools/fetch_eu_icons.py` |
-| `tests/images/` and its manifest | `tools/make_test_images.py` |
+| `tests/images/*` and its manifest | `tools/make_test_images.py` |
+
+`tests/images/real/` is the exception: contributed files, never generated, never
+rewritten. Editing one destroys the only reason it exists.
 
 **`scan/` and `detect/` must not import Thumbor.** They are deliberately standalone so
 they can be tested and reused without Thumbor's dependency pins. Only `engine.py`,

@@ -1,0 +1,7 @@
+# setuptools-scm puts every git-tracked file in the sdist by default. Contributed
+# images are pruned because that directory grows without bound as people donate
+# files, and nobody building from source needs them: the synthetic corpus still
+# ships, so an sdist remains self-testing for the parsers.
+#
+# tests/test_corpus.py skips the contributed cases when the directory is absent.
+prune tests/images/real

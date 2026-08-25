@@ -32,7 +32,15 @@ from thumbor_ai_label.state import store_scan
 CORPUS = pathlib.Path(__file__).resolve().parent / "images"
 MANIFEST = json.loads((CORPUS / "manifest.json").read_text())
 
-#: Files in the corpus directory that are not test images.
+#: Contributed output from real generators. Not generated, never rewritten, and
+#: excluded from the sdist because it grows without bound as people contribute.
+REAL_CORPUS = CORPUS / "real"
+REAL_MANIFEST_PATH = REAL_CORPUS / "manifest.json"
+REAL_MANIFEST = json.loads(REAL_MANIFEST_PATH.read_text()) if REAL_MANIFEST_PATH.is_file() else []
+
+#: Files in a corpus directory that are not test images. Subdirectories are excluded
+#: separately by an is_file() check, which is what keeps `real/` out of the synthetic
+#: corpus's own integrity check.
 NON_IMAGES = {"manifest.json", "README.md"}
 
 
@@ -49,6 +57,14 @@ def ids(entry):
     return entry["file"]
 
 
+def image_names(directory):
+    return {
+        p.name
+        for p in directory.iterdir()
+        if p.is_file() and p.name not in NON_IMAGES and not p.name.startswith("contact-sheet")
+    }
+
+
 class TestManifestIntegrity:
     def test_manifest_is_not_empty(self):
         assert len(MANIFEST) >= 20
@@ -60,11 +76,7 @@ class TestManifestIntegrity:
     def test_every_image_on_disk_is_in_the_manifest(self):
         """An unlisted image is an untested image."""
         listed = {e["file"] for e in MANIFEST}
-        on_disk = {
-            p.name
-            for p in CORPUS.iterdir()
-            if p.is_file() and p.name not in NON_IMAGES and not p.name.startswith("contact-sheet")
-        }
+        on_disk = image_names(CORPUS)
         assert on_disk == listed, (
             f"unlisted: {sorted(on_disk - listed)}, listed but absent: {sorted(listed - on_disk)}"
         )
@@ -101,3 +113,56 @@ def test_the_policy_divergence_cases_actually_diverge():
     assert exif_only["strict"] == xmp_silent["strict"] == "unknown"
     assert exif_only["relaxed"] is None
     assert xmp_silent["relaxed"] == "unknown"
+
+
+# -- Contributed corpus ---------------------------------------------------
+#
+# Real generator output. Empty until someone contributes (see issue #2), and absent
+# entirely from an sdist, so every test here has to cope with having nothing to do.
+
+real_corpus_present = pytest.mark.skipif(
+    not REAL_CORPUS.is_dir(),
+    reason="contributed corpus is excluded from the sdist",
+)
+
+
+@real_corpus_present
+class TestRealManifestIntegrity:
+    def test_every_manifest_entry_exists_on_disk(self):
+        missing = [e["file"] for e in REAL_MANIFEST if not (REAL_CORPUS / e["file"]).is_file()]
+        assert not missing, f"manifest lists files that are not present: {missing}"
+
+    def test_every_image_on_disk_is_in_the_manifest(self):
+        listed = {e["file"] for e in REAL_MANIFEST}
+        on_disk = image_names(REAL_CORPUS)
+        assert on_disk == listed, (
+            f"unlisted: {sorted(on_disk - listed)}, listed but absent: {sorted(listed - on_disk)}"
+        )
+
+    def test_every_entry_names_its_source_and_both_policies(self):
+        """Without a source, a failing case cannot be reproduced or reported upstream."""
+        for entry in REAL_MANIFEST:
+            assert entry.get("source"), f"{entry['file']} does not say what produced it"
+            assert set(entry.get("expected", {})) == {"strict", "relaxed"}, entry["file"]
+
+
+@pytest.mark.skipif(not REAL_MANIFEST, reason="no contributed images yet - see issue #2")
+@pytest.mark.parametrize("entry", REAL_MANIFEST, ids=ids)
+@pytest.mark.parametrize("policy", ["strict", "relaxed"])
+def test_real_corpus_matches_manifest(entry, policy):
+    """The only fixtures here not written by this project.
+
+    A failure is more likely to be a real bug than a bad expectation: these are the
+    bytes an actual generator emitted, and the synthetic corpus has already proved it
+    can miss things real encoders do.
+    """
+    payload = (REAL_CORPUS / entry["file"]).read_bytes()
+    expected = entry["expected"][policy]
+
+    decision = decide(payload, policy)
+    actual = decision.state.value if decision.state else None
+
+    assert actual == expected, (
+        f"{entry['file']} ({entry['source']}) under {policy}: "
+        f"expected {expected!r}, got {actual!r} (reason: {decision.reason.value})"
+    )
