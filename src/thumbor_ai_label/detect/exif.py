@@ -112,9 +112,7 @@ def _decode_value(tag: int, field_type: int, raw: bytes, endian: str) -> str:
     return ""
 
 
-def _walk_ifd(
-    blob: bytes, endian: str, offset: int, values: dict[int, str]
-) -> int | None:
+def _walk_ifd(blob: bytes, endian: str, offset: int, values: dict[int, str]) -> int | None:
     """Read the tags of interest from one IFD. Returns the Exif sub-IFD offset if seen."""
     if not 8 <= offset < len(blob) - 2:
         return None

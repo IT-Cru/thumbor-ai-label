@@ -113,9 +113,7 @@ def load_detectors(names: Iterable[str] | None = None) -> list[Detector]:
     return detectors
 
 
-async def run_detectors(
-    scanned: ScanResult, detectors: Sequence[Detector]
-) -> list[Detection]:
+async def run_detectors(scanned: ScanResult, detectors: Sequence[Detector]) -> list[Detection]:
     """Run detectors in order, stopping once one speaks conclusively.
 
     A detector whose required segment kinds are absent is skipped without being

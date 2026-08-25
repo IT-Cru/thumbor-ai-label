@@ -61,11 +61,15 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev,thumbor]'
 ```
 
 ```bash
-.venv/bin/ruff check .
+.venv/bin/ruff check . && .venv/bin/ruff format .
 ```
 
-CI runs ruff, and the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`.
-**Both are enforced, not aspirational.** If a line cannot be reached by a test, that is usually a
+CI runs `ruff check`, `ruff format --check`, and the suite on Python 3.10 through 3.14
+with `--cov-fail-under=100`. **All three are enforced, not aspirational.**
+
+Formatting is `ruff format` with the default style at a 100-column limit. Do not hand-
+tune layout — run the formatter and take what it gives you. That is the point of having
+one: layout stops being a thing anybody argues about in review. If a line cannot be reached by a test, that is usually a
 sign the line should not exist — several defensive branches were deleted during
 development for exactly that reason.
 

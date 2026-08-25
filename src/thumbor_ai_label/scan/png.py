@@ -119,9 +119,7 @@ def _handle_itxt(payload: memoryview, result: ScanResult, limits: ScanLimits) ->
         _handle_raw_profile(keyword, rest, result, limits, "png:iTXt")
 
 
-def _handle_text(
-    ctype: bytes, payload: memoryview, result: ScanResult, limits: ScanLimits
-) -> None:
+def _handle_text(ctype: bytes, payload: memoryview, result: ScanResult, limits: ScanLimits) -> None:
     raw = bytes(payload)
     sep = raw.find(b"\x00")
     if sep < 0:

@@ -43,9 +43,7 @@ class TestStrictPolicy:
         assert decision.state is SourceType.UNKNOWN
 
     def test_an_unrecognised_term_is_labelled(self):
-        decision = decide(
-            scanned(SegmentKind.XMP), found(SourceType.UNKNOWN), Policy.STRICT
-        )
+        decision = decide(scanned(SegmentKind.XMP), found(SourceType.UNKNOWN), Policy.STRICT)
         assert decision.state is SourceType.UNKNOWN
 
 
@@ -133,6 +131,7 @@ class TestSerialisation:
 
     def test_generator_is_omitted_when_unknown(self):
         detection = Detection(SourceType.AI_GENERATED, Confidence.HIGH, "iptc")
-        assert "generator" not in Decision(
-            SourceType.AI_GENERATED, Reason.AI_ASSERTED, detection
-        ).as_dict()
+        assert (
+            "generator"
+            not in Decision(SourceType.AI_GENERATED, Reason.AI_ASSERTED, detection).as_dict()
+        )

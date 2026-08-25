@@ -107,9 +107,7 @@ class IconSet:
 
         if not path.is_file():
             if override is not None:
-                raise IconError(
-                    f"icon override for {state.value!r} not found: {path}"
-                )
+                raise IconError(f"icon override for {state.value!r} not found: {path}")
             raise IconError(f"icon set {self.name!r} is missing {path}")
 
         try:

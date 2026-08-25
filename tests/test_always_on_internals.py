@@ -144,6 +144,7 @@ class TestFactoryWrapper:
                 return FiltersRunner(collections.defaultdict(list))
 
         factory = AlwaysOnFiltersFactory(Bare())
-        assert len(factory.create_instances(self.context(), "").filter_instances[
-            PHASE_POST_TRANSFORM
-        ]) == 1
+        assert (
+            len(factory.create_instances(self.context(), "").filter_instances[PHASE_POST_TRANSFORM])
+            == 1
+        )

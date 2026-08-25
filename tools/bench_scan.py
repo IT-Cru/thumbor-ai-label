@@ -18,7 +18,7 @@ XMP = (
     b'<?xpacket begin="\xef\xbb\xbf"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
     b'<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
     b'<rdf:Description xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" '
-    b'Iptc4xmpExt:DigitalSourceType='
+    b"Iptc4xmpExt:DigitalSourceType="
     b'"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"/>'
     b'</rdf:RDF></x:xmpmeta><?xpacket end="w"?>'
 )
@@ -62,9 +62,7 @@ def main():
     print("-" * 62)
     for label, raw in cases:
         median, worst = measure(raw)
-        print(
-            f"{label:<26} {len(raw) / 1_000_000:>9.1f}M {median:>10.1f}us {worst:>10.1f}us"
-        )
+        print(f"{label:<26} {len(raw) / 1_000_000:>9.1f}M {median:>10.1f}us {worst:>10.1f}us")
 
 
 if __name__ == "__main__":

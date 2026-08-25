@@ -58,9 +58,7 @@ Config.define(
     "Label corner: top-left, top-right, bottom-left, bottom-right or center.",
     GROUP,
 )
-Config.define(
-    "AI_LABEL_SIZE_RATIO", 0.14, "Label size as a fraction of the shorter edge.", GROUP
-)
+Config.define("AI_LABEL_SIZE_RATIO", 0.14, "Label size as a fraction of the shorter edge.", GROUP)
 Config.define("AI_LABEL_MIN_SIZE", 20, "Smallest label, in pixels.", GROUP)
 Config.define("AI_LABEL_MAX_SIZE", 96, "Largest label, in pixels.", GROUP)
 Config.define(

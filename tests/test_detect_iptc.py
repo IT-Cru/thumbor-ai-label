@@ -131,7 +131,7 @@ class TestNothingToSay:
 
 class TestHostileInput:
     def test_truncated_xml_does_not_raise(self):
-        assert detector.detect(scanned(b'<x:xmpmeta><rdf:Desc')) is None
+        assert detector.detect(scanned(b"<x:xmpmeta><rdf:Desc")) is None
 
     def test_binary_garbage_does_not_raise(self):
         assert detector.detect(scanned(bytes(range(256)) * 4)) is None
@@ -140,7 +140,7 @@ class TestHostileInput:
         """No XML parser is used, so a billion-laughs payload is inert text."""
         bomb = (
             b'<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">'
-            + b''.join(
+            + b"".join(
                 b'<!ENTITY lol%d "&lol%d;&lol%d;&lol%d;&lol%d;">' % (i, i - 1, i - 1, i - 1, i - 1)
                 for i in range(1, 12)
             )
@@ -152,7 +152,6 @@ class TestHostileInput:
 
     def test_external_entity_is_not_resolved(self):
         payload = (
-            b'<?xml version="1.0"?><!DOCTYPE d [<!ENTITY x SYSTEM "file:///etc/passwd">]>'
-            b"<d>&x;</d>"
+            b'<?xml version="1.0"?><!DOCTYPE d [<!ENTITY x SYSTEM "file:///etc/passwd">]><d>&x;</d>'
         )
         assert detector.detect(scanned(payload)) is None

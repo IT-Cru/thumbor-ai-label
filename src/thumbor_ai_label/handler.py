@@ -67,9 +67,7 @@ class AiLabelImagingHandler(ImagingHandler):
         # self.context is the fresh per-request Context built by super(), and its
         # filters_factory is per-Context too, so wrapping here affects exactly this
         # request and cannot leak into another.
-        self.context.filters_factory = AlwaysOnFiltersFactory(
-            self.context.filters_factory
-        )
+        self.context.filters_factory = AlwaysOnFiltersFactory(self.context.filters_factory)
 
     async def after_transform(self):
         await super().after_transform()

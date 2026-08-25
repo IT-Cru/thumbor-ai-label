@@ -85,8 +85,12 @@ def main() -> None:
             icon.save(path, "PNG", optimize=True)
             print(
                 "  {}/{:<16} {:>4}x{:<4} {:>6} bytes  <- {}".format(
-                    set_name, state + ".png", icon.width, icon.height,
-                    path.stat().st_size, source,
+                    set_name,
+                    state + ".png",
+                    icon.width,
+                    icon.height,
+                    path.stat().st_size,
+                    source,
                 )
             )
 

@@ -238,17 +238,19 @@ class TestIconSets:
         """The EU marks assert content IS AI. Unproven provenance is not that claim."""
         eu = IconSet(icon_set=name)
         default = IconSet()
-        assert eu.get(SourceType.UNKNOWN, 64).tobytes() == default.get(
-            SourceType.UNKNOWN, 64
-        ).tobytes()
+        assert (
+            eu.get(SourceType.UNKNOWN, 64).tobytes()
+            == default.get(SourceType.UNKNOWN, 64).tobytes()
+        )
         assert eu.aspect(SourceType.UNKNOWN) == pytest.approx(1.0, abs=0.01)
 
     def test_composite_uses_the_modified_mark(self):
         """A composite containing AI elements is 'partially modified with AI'."""
         icons = IconSet(icon_set="eu")
-        assert icons.get(SourceType.AI_COMPOSITE, 40).tobytes() == icons.get(
-            SourceType.AI_MANIPULATED, 40
-        ).tobytes()
+        assert (
+            icons.get(SourceType.AI_COMPOSITE, 40).tobytes()
+            == icons.get(SourceType.AI_MANIPULATED, 40).tobytes()
+        )
 
     def test_the_two_eu_variants_differ(self):
         black = IconSet(icon_set="eu").get(SourceType.AI_GENERATED, 40)

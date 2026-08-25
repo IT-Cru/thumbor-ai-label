@@ -59,7 +59,7 @@ attribution. **Their use is optional; the disclosure obligation is not.** They s
 with this plugin:
 
 ```python
-AI_LABEL_ICON_SET = "eu"        # dark labels, for light imagery
+AI_LABEL_ICON_SET = "eu"  # dark labels, for light imagery
 AI_LABEL_ICON_SET = "eu-white"  # light labels, for dark imagery
 ```
 
@@ -161,6 +161,7 @@ Running an engine other than PIL? Compose your own:
 from thumbor_ai_label.engine import AiLabelEngineMixin
 from my.engine import Engine as Base
 
+
 class Engine(AiLabelEngineMixin, Base):
     pass
 ```
@@ -190,13 +191,13 @@ no Thumbor import, so it can be tested and reused on its own.
 ```python
 from thumbor_ai_label.scan import scan
 
-result = scan(buffer)          # bytes, bytearray or memoryview
-result.container               # Container.JPEG | PNG | WEBP | None
-result.xmp                     # list[bytes] - XMP packets
-result.exif                    # list[bytes] - starting at the TIFF header
-result.jumbf                   # list[bytes] - reassembled JUMBF boxes
-result.has_any_metadata        # what the fail-closed policy keys off
-result.truncated, result.notes # how far the walk got, and why it stopped
+result = scan(buffer)  # bytes, bytearray or memoryview
+result.container  # Container.JPEG | PNG | WEBP | None
+result.xmp  # list[bytes] - XMP packets
+result.exif  # list[bytes] - starting at the TIFF header
+result.jumbf  # list[bytes] - reassembled JUMBF boxes
+result.has_any_metadata  # what the fail-closed policy keys off
+result.truncated, result.notes  # how far the walk got, and why it stopped
 ```
 
 The buffer is the one the Thumbor loader already holds, so a scan adds no I/O.
@@ -398,9 +399,9 @@ your styles are mostly small, consider pointing all three at one icon:
 
 ```python
 AI_LABEL_ICONS = {
-    "ai_generated":   "/etc/thumbor/icons/ai.png",
+    "ai_generated": "/etc/thumbor/icons/ai.png",
     "ai_manipulated": "/etc/thumbor/icons/ai.png",
-    "ai_composite":   "/etc/thumbor/icons/ai.png",
+    "ai_composite": "/etc/thumbor/icons/ai.png",
 }
 ```
 

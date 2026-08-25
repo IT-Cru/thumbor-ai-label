@@ -41,8 +41,8 @@ OUT = pathlib.Path(__file__).resolve().parent.parent / "src" / "thumbor_ai_label
 def draw_a(draw, box, width, colour):
     x0, y0, x1, y1 = box
     apex = ((x0 + x1) / 2, y0)
-    draw.line([ (x0, y1), apex ], fill=colour, width=width, joint="curve")
-    draw.line([ apex, (x1, y1) ], fill=colour, width=width, joint="curve")
+    draw.line([(x0, y1), apex], fill=colour, width=width, joint="curve")
+    draw.line([apex, (x1, y1)], fill=colour, width=width, joint="curve")
     bar_y = y0 + (y1 - y0) * 0.68
     inset = (x1 - x0) * 0.19
     draw.line([(x0 + inset, bar_y), (x1 - inset, bar_y)], fill=colour, width=width)

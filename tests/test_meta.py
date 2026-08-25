@@ -187,7 +187,9 @@ class TestRelaxedPolicyReported(MetaCase):
 
 
 class TestRobustness(MetaCase):
-    def test_an_injection_failure_leaves_the_response_valid(self, ):
+    def test_an_injection_failure_leaves_the_response_valid(
+        self,
+    ):
         """A broken labelling feature must not break an endpoint clients rely on."""
         from thumbor_ai_label import meta as meta_module
 
@@ -239,9 +241,12 @@ class TestInjectionEdges:
         monkeypatch.setattr(
             meta_module, "get_settings", lambda _c: (_ for _ in ()).throw(RuntimeError("boom"))
         )
-        assert meta_module._would_draw(
-            context, Decision(SourceType.AI_GENERATED, Reason.AI_ASSERTED), (600, 400)
-        ) is None
+        assert (
+            meta_module._would_draw(
+                context, Decision(SourceType.AI_GENERATED, Reason.AI_ASSERTED), (600, 400)
+            )
+            is None
+        )
 
 
 class TestHandlerSafetyNet:

@@ -52,9 +52,7 @@ class Layout:
         if not 0 <= self.margin_ratio < 0.5:
             raise ValueError(f"margin_ratio must be in [0, 0.5), got {self.margin_ratio}")
         if self.min_size > self.max_size:
-            raise ValueError(
-                f"min_size {self.min_size} exceeds max_size {self.max_size}"
-            )
+            raise ValueError(f"min_size {self.min_size} exceeds max_size {self.max_size}")
         if self.min_size < 1:
             raise ValueError(f"min_size must be positive, got {self.min_size}")
 
@@ -160,9 +158,7 @@ def paste_label(image: Image.Image, icon: Image.Image, origin: tuple[int, int]) 
     return target
 
 
-def apply_label(
-    image: Image.Image, icon_for_height, layout: Layout
-) -> tuple[Image.Image, bool]:
+def apply_label(image: Image.Image, icon_for_height, layout: Layout) -> tuple[Image.Image, bool]:
     """Size, place and paste a label. Returns (image, whether a label was drawn).
 
     ``icon_for_height`` is called with a pixel height and returns the icon at that

@@ -72,7 +72,7 @@ def main() -> None:
     columns = args.columns
     # Row heights are computed per row, not globally: one very tall image would
     # otherwise pad every other row with a screenful of blank space.
-    row_groups = [rendered[i:i + columns] for i in range(0, len(rendered), columns)]
+    row_groups = [rendered[i : i + columns] for i in range(0, len(rendered), columns)]
     row_heights = [max(img.height for _, img in group) + caption_h for group in row_groups]
 
     sheet = Image.new(
@@ -95,15 +95,21 @@ def main() -> None:
         for entry, image in group:
             sheet.paste(image, (x, y))
             expected = entry["expected"][args.policy] or "no label"
-            draw.text((x, y + image.height + 4), "{}  -> {}".format(entry["file"], expected),
-                      fill=(60, 60, 60), font=font)
+            draw.text(
+                (x, y + image.height + 4),
+                "{}  -> {}".format(entry["file"], expected),
+                fill=(60, 60, 60),
+                font=font,
+            )
             x += cell_w + pad
         y += row_heights[row_index] + pad
 
     # Default to the working directory, not the corpus: a generated sheet is an
     # artefact, and dropping it among the fixtures would make it look like one.
-    out = pathlib.Path(args.out) if args.out else pathlib.Path(
-        f"contact-sheet-{args.icon_set}-{args.policy}.png"
+    out = (
+        pathlib.Path(args.out)
+        if args.out
+        else pathlib.Path(f"contact-sheet-{args.icon_set}-{args.policy}.png")
     )
     sheet.save(out)
     print(f"wrote {out} ({sheet.width}x{sheet.height})")

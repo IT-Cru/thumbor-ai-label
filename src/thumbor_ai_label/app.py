@@ -1,6 +1,6 @@
 """Application class that installs the always-on label handler.
 
-    APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
+APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
 """
 
 from __future__ import annotations

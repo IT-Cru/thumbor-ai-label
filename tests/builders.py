@@ -17,6 +17,7 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 # -- JPEG ----------------------------------------------------------------
 
+
 def app(marker: int, payload: bytes) -> bytes:
     return bytes([0xFF, marker]) + struct.pack(">H", len(payload) + 2) + payload
 
@@ -58,6 +59,7 @@ def build_jpeg(segments=(), entropy: bytes = b"\x11" * 8, eoi: bool = True) -> b
 
 # -- PNG -----------------------------------------------------------------
 
+
 def png_chunk(ctype: bytes, data: bytes) -> bytes:
     return (
         struct.pack(">I", len(data))
@@ -97,6 +99,7 @@ def build_png(chunks=(), iend: bool = True) -> bytes:
 
 
 # -- WebP ----------------------------------------------------------------
+
 
 def riff_chunk(fourcc: bytes, data: bytes) -> bytes:
     out = fourcc + struct.pack("<I", len(data)) + data

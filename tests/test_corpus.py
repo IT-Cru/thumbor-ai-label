@@ -66,8 +66,7 @@ class TestManifestIntegrity:
             if p.is_file() and p.name not in NON_IMAGES and not p.name.startswith("contact-sheet")
         }
         assert on_disk == listed, (
-            f"unlisted: {sorted(on_disk - listed)}, "
-            f"listed but absent: {sorted(listed - on_disk)}"
+            f"unlisted: {sorted(on_disk - listed)}, listed but absent: {sorted(listed - on_disk)}"
         )
 
     def test_every_entry_declares_both_policies(self):
@@ -84,10 +83,8 @@ def test_corpus_matches_manifest(entry, policy):
     decision = decide(payload, policy)
     actual = decision.state.value if decision.state else None
 
-    assert actual == expected, (
-        "{} under {}: expected {!r}, got {!r} (reason: {}) - {}".format(
-            entry["file"], policy, expected, actual, decision.reason.value, entry["description"]
-        )
+    assert actual == expected, "{} under {}: expected {!r}, got {!r} (reason: {}) - {}".format(
+        entry["file"], policy, expected, actual, decision.reason.value, entry["description"]
     )
 
 
