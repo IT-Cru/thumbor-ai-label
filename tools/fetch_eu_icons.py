@@ -59,10 +59,10 @@ SETS = {
 
 
 def main() -> None:
-    print("downloading {} ...".format(PNG_ARCHIVE))
+    print(f"downloading {PNG_ARCHIVE} ...")
     with urllib.request.urlopen(PNG_ARCHIVE) as response:
         payload = response.read()
-    print("  {} bytes".format(len(payload)))
+    print(f"  {len(payload)} bytes")
 
     archive = zipfile.ZipFile(io.BytesIO(payload))
     available = set(archive.namelist())
@@ -74,16 +74,14 @@ def main() -> None:
         for state, source in mapping.items():
             if source not in available:
                 raise SystemExit(
-                    "official archive has no {!r}; contents: {}".format(
-                        source, sorted(available)
-                    )
+                    f"official archive has no {source!r}; contents: {sorted(available)}"
                 )
             with archive.open(source) as handle:
                 icon = Image.open(io.BytesIO(handle.read())).convert("RGBA")
 
             width = max(1, round(icon.width * TARGET_HEIGHT / icon.height))
             icon = icon.resize((width, TARGET_HEIGHT), Image.LANCZOS)
-            path = out / "{}.png".format(state)
+            path = out / f"{state}.png"
             icon.save(path, "PNG", optimize=True)
             print(
                 "  {}/{:<16} {:>4}x{:<4} {:>6} bytes  <- {}".format(
@@ -94,7 +92,7 @@ def main() -> None:
 
         # The neutral unknown mark is this plugin's own, never an EU one.
         shutil.copyfile(ICONS / "unknown.png", out / "unknown.png")
-        print("  {}/unknown.png     (this plugin's neutral mark, not an EU icon)".format(set_name))
+        print(f"  {set_name}/unknown.png     (this plugin's neutral mark, not an EU icon)")
 
 
 if __name__ == "__main__":

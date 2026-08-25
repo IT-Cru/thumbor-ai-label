@@ -41,12 +41,12 @@ class AlwaysOnFiltersFactory:
         runner = self._inner.create_instances(context, filter_params)
 
         try:
-            instance = self._filter_cls.init_if_valid("{}()".format(self._name), context)
+            instance = self._filter_cls.init_if_valid(f"{self._name}()", context)
             if instance is not None:
                 runner.filter_instances[self._phase].append(instance)
             else:
                 logger.error("[AiLabel] could not instantiate the label filter")
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001
             # A failure here must not cost the user their image; it costs the label,
             # loudly. The engine-level draw guard means a duplicate append would be
             # harmless anyway.
@@ -82,7 +82,8 @@ class AiLabelImagingHandler(ImagingHandler):
         if getattr(request, "meta", False) and get_decision(self.context) is None:
             try:
                 await decide_for_request(self.context)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:  # noqa: BLE001
+                # A missing verdict belongs in the payload, not raised at a client.
                 logger.exception("[AiLabel] could not evaluate provenance for /meta/")
 
     def _load_results(self, context):

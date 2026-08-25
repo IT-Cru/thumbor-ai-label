@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class SourceType(str, Enum):
@@ -62,7 +61,7 @@ class Detection:
     #: on the meta endpoint so a decision can be audited rather than just trusted.
     evidence: str = ""
     #: Which tool made the image, when the metadata names one.
-    generator: Optional[str] = None
+    generator: str | None = None
 
     @property
     def is_conclusive(self) -> bool:
@@ -103,7 +102,7 @@ IPTC_SOURCE_TYPES = {
 }
 
 
-def resolve_iptc_term(value: str) -> "tuple[SourceType, str]":
+def resolve_iptc_term(value: str) -> tuple[SourceType, str]:
     """Map a DigitalSourceType value onto a state.
 
     Accepts either the full CV URI or a bare term - both appear in the wild.

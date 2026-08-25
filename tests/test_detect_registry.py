@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import ClassVar
 
 import pytest
 
@@ -174,8 +175,12 @@ class TestRunning:
     def test_a_conclusive_verdict_short_circuits(self):
         calls = []
         detectors = [
-            registry.Detector.adapt("first", stub("first", verdict(SourceType.AI_GENERATED), calls=calls)),
-            registry.Detector.adapt("second", stub("second", verdict(SourceType.NOT_AI), calls=calls)),
+            registry.Detector.adapt(
+                "first", stub("first", verdict(SourceType.AI_GENERATED), calls=calls)
+            ),
+            registry.Detector.adapt(
+                "second", stub("second", verdict(SourceType.NOT_AI), calls=calls)
+            ),
         ]
         found = run(run_detectors(scanned(SegmentKind.XMP), detectors))
         assert calls == ["first"]
@@ -208,7 +213,9 @@ class TestRunning:
         calls = []
         detectors = [
             registry.Detector.adapt("bad", stub("bad", boom=True, calls=calls)),
-            registry.Detector.adapt("good", stub("good", verdict(SourceType.AI_GENERATED), calls=calls)),
+            registry.Detector.adapt(
+                "good", stub("good", verdict(SourceType.AI_GENERATED), calls=calls)
+            ),
         ]
         found = run(run_detectors(scanned(SegmentKind.XMP), detectors))
         assert calls == ["bad", "good"]
@@ -259,7 +266,7 @@ class TestAdaptation:
 
         class Instance:
             name = "instance"
-            requires = {SegmentKind.EXIF}
+            requires: ClassVar[set] = {SegmentKind.EXIF}
 
             def detect(self, result):
                 return verdict(SourceType.AI_GENERATED, name="instance")

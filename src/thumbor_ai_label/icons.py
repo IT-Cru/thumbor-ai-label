@@ -22,8 +22,8 @@ No Thumbor import.
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Mapping
 from functools import lru_cache
-from typing import Dict, Mapping, Optional
 
 from PIL import Image
 
@@ -52,7 +52,7 @@ class IconError(Exception):
     """Raised at startup for an unusable icon configuration."""
 
 
-def set_directory(name: str, base: Optional[pathlib.Path] = None) -> pathlib.Path:
+def set_directory(name: str, base: pathlib.Path | None = None) -> pathlib.Path:
     base = pathlib.Path(base) if base else DEFAULT_ICON_DIR
     return base if name == DEFAULT_SET else base / name
 
@@ -66,13 +66,13 @@ class IconSet:
 
     def __init__(
         self,
-        overrides: Optional[Mapping[str, str]] = None,
+        overrides: Mapping[str, str] | None = None,
         opacity: int = 100,
-        icon_dir: Optional[pathlib.Path] = None,
+        icon_dir: pathlib.Path | None = None,
         icon_set: str = DEFAULT_SET,
     ):
         if not 0 <= opacity <= 100:
-            raise IconError("opacity must be between 0 and 100, got {}".format(opacity))
+            raise IconError(f"opacity must be between 0 and 100, got {opacity}")
 
         self.opacity = opacity
         self.name = icon_set
@@ -95,28 +95,28 @@ class IconSet:
                 )
             )
 
-        self._icons: Dict[SourceType, Image.Image] = {}
+        self._icons: dict[SourceType, Image.Image] = {}
         for state in LABEL_STATES:
             path = overrides.get(state.value)
             self._icons[state] = self._load(state, pathlib.Path(path) if path else None)
 
         self._scaled = lru_cache(maxsize=RESIZE_CACHE_SIZE)(self._scale)
 
-    def _load(self, state: SourceType, override: Optional[pathlib.Path]) -> Image.Image:
-        path = override if override is not None else self._dir / "{}.png".format(state.value)
+    def _load(self, state: SourceType, override: pathlib.Path | None) -> Image.Image:
+        path = override if override is not None else self._dir / f"{state.value}.png"
 
         if not path.is_file():
             if override is not None:
                 raise IconError(
-                    "icon override for {!r} not found: {}".format(state.value, path)
+                    f"icon override for {state.value!r} not found: {path}"
                 )
-            raise IconError("icon set {!r} is missing {}".format(self.name, path))
+            raise IconError(f"icon set {self.name!r} is missing {path}")
 
         try:
             with Image.open(path) as handle:
                 icon = handle.convert("RGBA")
         except Exception as exc:
-            raise IconError("could not read icon {}: {}".format(path, exc)) from exc
+            raise IconError(f"could not read icon {path}: {exc}") from exc
 
         if self.opacity < 100:
             alpha = icon.getchannel("A").point(lambda value: value * self.opacity // 100)
@@ -138,9 +138,9 @@ class IconSet:
         forcing them into a square would deform an official mark.
         """
         if state not in self._icons:
-            raise IconError("no icon for state {!r}".format(state))
+            raise IconError(f"no icon for state {state!r}")
         if height < 1:
-            raise IconError("icon height must be positive, got {}".format(height))
+            raise IconError(f"icon height must be positive, got {height}")
         return self._scaled(state, height)
 
     def aspect(self, state: SourceType) -> float:

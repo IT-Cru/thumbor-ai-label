@@ -96,7 +96,7 @@ async def apply(context, engine) -> bool:
     try:
         decision = await decide_for_request(context)
         return draw(context, engine, decision)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         logger.exception("[AiLabel] failed to apply label")
         if _strict_errors(context):
             raise
@@ -112,5 +112,5 @@ def _strict_errors(context) -> bool:
     """
     try:
         return bool(context.config.AI_LABEL_STRICT_ERRORS)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001 - unreadable config must not silently force strict mode on
         return False

@@ -38,7 +38,7 @@ dependencies = []
 [project.optional-dependencies]
 thumbor = ["thumbor>=7.8"]
 c2pa = ["c2pa-python>=0.5"]
-dev = ["pytest>=8", "pytest-cov>=5", "packaging>=23"]
+dev = ["pytest>=8", "pytest-cov>=5", "packaging>=23", "ruff>=0.16"]
 
 [project.urls]
 Homepage = "https://github.com/IT-Cru/thumbor-ai-label"
@@ -76,3 +76,20 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+# Pinned explicitly rather than relying on ruff's defaults, which shift between
+# releases - otherwise a routine ruff upgrade becomes a surprise CI failure.
+#
+# BLE (blind-except) is selected on purpose even though this codebase catches broadly
+# by design. Containment is a deliberate property here: labelling must not take image
+# delivery down, and the scanner must never raise on hostile input. Selecting the rule
+# forces every such site to carry an explicit `# noqa: BLE001` and an explanation, so a
+# careless broad except cannot slip in disguised as a deliberate one.
+select = ["E", "F", "W", "I", "UP", "B", "RUF", "BLE", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: asserting is what a test is for.
+# S311: `random` drives the fuzz corpus. Seeded and reproducible on purpose; the rule
+#       is about cryptographic use, which this is not.
+"tests/**" = ["S101", "S311"]

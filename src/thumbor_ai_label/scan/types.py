@@ -6,9 +6,9 @@ unit-tested on any interpreter, independent of Thumbor's dependency pins.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Sequence, Tuple
 
 
 class Container(str, Enum):
@@ -46,9 +46,7 @@ class RawSegment:
         # Payloads can carry personal data (GPS, creator, captions). Keep them out
         # of logs and tracebacks; length and provenance are what debugging needs.
         return (
-            "RawSegment(kind={!r}, origin={!r}, bytes={})".format(
-                self.kind.value, self.origin, len(self.data)
-            )
+            f"RawSegment(kind={self.kind.value!r}, origin={self.origin!r}, bytes={len(self.data)})"
         )
 
 
@@ -92,19 +90,19 @@ class ScanResult:
     show up. ``has_any_metadata`` is what the fail-closed policy keys off.
     """
 
-    container: Optional[Container] = None
-    segments: List[RawSegment] = field(default_factory=list)
-    notes: Tuple[str, ...] = ()
+    container: Container | None = None
+    segments: list[RawSegment] = field(default_factory=list)
+    notes: tuple[str, ...] = ()
     truncated: bool = False
 
-    _used: Dict[SegmentKind, int] = field(default_factory=dict, repr=False)
+    _used: dict[SegmentKind, int] = field(default_factory=dict, repr=False)
 
     # -- collection ------------------------------------------------------
 
     def add(self, kind: SegmentKind, data: bytes, origin: str, limits: ScanLimits) -> bool:
         """Record a payload if it fits the limits. Returns False if it was dropped."""
         if len(self.segments) >= limits.max_segments:
-            self.note("segment-limit reached ({}); stopped collecting".format(limits.max_segments))
+            self.note(f"segment-limit reached ({limits.max_segments}); stopped collecting")
             self.truncated = True
             return False
 
@@ -112,9 +110,8 @@ class ScanResult:
         budget = limits.budget_for(kind)
         if used + len(data) > budget:
             self.note(
-                "{} byte budget exhausted ({} of {}); dropped {} from {}".format(
-                    kind.value, used, budget, len(data), origin
-                )
+                f"{kind.value} byte budget exhausted ({used} of {budget}); "
+                f"dropped {len(data)} from {origin}"
             )
             self.truncated = True
             return False
@@ -126,23 +123,23 @@ class ScanResult:
     def note(self, message: str) -> None:
         """Record a non-fatal observation about the walk."""
         if message not in self.notes:
-            self.notes = self.notes + (message,)
+            self.notes = (*self.notes, message)
 
     # -- access ----------------------------------------------------------
 
-    def of(self, kind: SegmentKind) -> List[bytes]:
+    def of(self, kind: SegmentKind) -> list[bytes]:
         return [s.data for s in self.segments if s.kind is kind]
 
     @property
-    def xmp(self) -> List[bytes]:
+    def xmp(self) -> list[bytes]:
         return self.of(SegmentKind.XMP)
 
     @property
-    def exif(self) -> List[bytes]:
+    def exif(self) -> list[bytes]:
         return self.of(SegmentKind.EXIF)
 
     @property
-    def jumbf(self) -> List[bytes]:
+    def jumbf(self) -> list[bytes]:
         return self.of(SegmentKind.JUMBF)
 
     @property

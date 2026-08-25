@@ -60,8 +60,12 @@ python -m venv .venv && .venv/bin/pip install -e '.[dev,thumbor]'
 .venv/bin/python -m pytest --cov=thumbor_ai_label --cov-report=term-missing
 ```
 
-CI runs the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`. **Coverage is
-enforced, not aspirational.** If a line cannot be reached by a test, that is usually a
+```bash
+.venv/bin/ruff check .
+```
+
+CI runs ruff, and the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`.
+**Both are enforced, not aspirational.** If a line cannot be reached by a test, that is usually a
 sign the line should not exist — several defensive branches were deleted during
 development for exactly that reason.
 
@@ -85,9 +89,20 @@ corrupt or hostile file yields a partial result with `truncated` set and an expl
 note — never an exception, because that would turn a weird image into a 500. The suite
 fuzzes ~10,500 mutated inputs asserting exactly this.
 
-**Broad `except Exception` is often deliberate here**, not sloppiness. Labelling must not
-take image delivery down. Where you see one, there should be a comment saying what it is
-containing and why; add that comment if you add such a handler.
+**Broad `except Exception` is deliberate here**, not sloppiness. Labelling must not take
+image delivery down, and the scanner must never raise on hostile input. Ruff's `BLE001`
+is switched **on** rather than off for exactly this reason: every such site needs an
+explicit `# noqa: BLE001` plus a reason, so a careless broad except cannot slip in
+disguised as a deliberate one. If you add one, justify it or ruff will stop you.
+
+The lint rule set is pinned explicitly in `pyproject.toml` rather than inherited from
+ruff's defaults, which shift between releases — otherwise upgrading ruff would turn into
+a surprise CI failure.
+
+One trap worth knowing: never run `ruff check --fix` with a partial `--select`. Ruff
+treats any `# noqa` for a rule outside that selection as dead and strips it, quietly
+removing suppressions the full configuration still needs. Run a bare `ruff check --fix`,
+which reads the configured set.
 
 **`unknown` is not an AI claim.** The plugin distinguishes "we know this is AI" from "we
 could not establish provenance". Do not collapse them, do not use an official EU mark for

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
 
 from PIL import Image
 
@@ -49,23 +48,23 @@ class Layout:
 
     def __post_init__(self):
         if not 0 < self.size_ratio <= 1:
-            raise ValueError("size_ratio must be in (0, 1], got {}".format(self.size_ratio))
+            raise ValueError(f"size_ratio must be in (0, 1], got {self.size_ratio}")
         if not 0 <= self.margin_ratio < 0.5:
-            raise ValueError("margin_ratio must be in [0, 0.5), got {}".format(self.margin_ratio))
+            raise ValueError(f"margin_ratio must be in [0, 0.5), got {self.margin_ratio}")
         if self.min_size > self.max_size:
             raise ValueError(
-                "min_size {} exceeds max_size {}".format(self.min_size, self.max_size)
+                f"min_size {self.min_size} exceeds max_size {self.max_size}"
             )
         if self.min_size < 1:
-            raise ValueError("min_size must be positive, got {}".format(self.min_size))
+            raise ValueError(f"min_size must be positive, got {self.min_size}")
 
 
-def label_margin(image_size: Tuple[int, int], layout: Layout) -> int:
+def label_margin(image_size: tuple[int, int], layout: Layout) -> int:
     shorter = min(image_size)
     return max(layout.min_margin, round(shorter * layout.margin_ratio))
 
 
-def label_height(image_size: Tuple[int, int], layout: Layout) -> Optional[int]:
+def label_height(image_size: tuple[int, int], layout: Layout) -> int | None:
     """Label height in pixels, or None if this image is too small to label."""
     width, height = image_size
     if width < 1 or height < 1:
@@ -86,8 +85,8 @@ def label_height(image_size: Tuple[int, int], layout: Layout) -> Optional[int]:
 
 
 def fit_label(
-    image_size: Tuple[int, int], icon_size: Tuple[int, int], layout: Layout
-) -> Optional[Tuple[int, int]]:
+    image_size: tuple[int, int], icon_size: tuple[int, int], layout: Layout
+) -> tuple[int, int] | None:
     """Final on-image label size, honouring the icon's aspect ratio.
 
     Height comes from the layout; width follows the icon. A wide lockup on a narrow
@@ -117,8 +116,8 @@ def fit_label(
 
 
 def label_origin(
-    image_size: Tuple[int, int], label_size: Tuple[int, int], layout: Layout
-) -> Tuple[int, int]:
+    image_size: tuple[int, int], label_size: tuple[int, int], layout: Layout
+) -> tuple[int, int]:
     """Top-left corner for a label of ``label_size``."""
     width, height = image_size
     label_w, label_h = label_size
@@ -139,7 +138,7 @@ def label_origin(
     return (max(0, min(x, width - label_w)), max(0, min(y, height - label_h)))
 
 
-def paste_label(image: Image.Image, icon: Image.Image, origin: Tuple[int, int]) -> Image.Image:
+def paste_label(image: Image.Image, icon: Image.Image, origin: tuple[int, int]) -> Image.Image:
     """Composite ``icon`` onto ``image``, returning the image to use afterwards.
 
     Palette and greyscale images are promoted to RGB first: an antialiased label
@@ -163,7 +162,7 @@ def paste_label(image: Image.Image, icon: Image.Image, origin: Tuple[int, int]) 
 
 def apply_label(
     image: Image.Image, icon_for_height, layout: Layout
-) -> Tuple[Image.Image, bool]:
+) -> tuple[Image.Image, bool]:
     """Size, place and paste a label. Returns (image, whether a label was drawn).
 
     ``icon_for_height`` is called with a pixel height and returns the icon at that

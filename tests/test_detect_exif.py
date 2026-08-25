@@ -75,7 +75,11 @@ class TestVendorMatching:
             ("ComfyUI", SourceType.AI_GENERATED, "ComfyUI"),
             ("Adobe Firefly", SourceType.AI_GENERATED, "Adobe Firefly"),
             ("Google Magic Editor", SourceType.AI_MANIPULATED, "Google Magic Editor"),
-            ("Adobe Photoshop 25.0 Generative Fill", SourceType.AI_MANIPULATED, "Adobe Generative Fill"),
+            (
+                "Adobe Photoshop 25.0 Generative Fill",
+                SourceType.AI_MANIPULATED,
+                "Adobe Generative Fill",
+            ),
         ],
     )
     def test_known_generators(self, software, expected, generator):
@@ -89,7 +93,8 @@ class TestVendorMatching:
         assert found.is_conclusive is False
 
     def test_matching_is_case_insensitive(self):
-        assert detector.detect(scanned(tiff({TAG_SOFTWARE: "MIDJOURNEY"}))).generator == "Midjourney"
+        found = detector.detect(scanned(tiff({TAG_SOFTWARE: "MIDJOURNEY"})))
+        assert found.generator == "Midjourney"
 
     def test_matches_across_any_read_tag(self):
         found = detector.detect(scanned(tiff({TAG_MAKE: "Midjourney", TAG_MODEL: "v6"})))
@@ -136,7 +141,7 @@ class TestParsing:
         assert detector.detect(scanned(blob)) is not None
 
     def test_real_pillow_exif_round_trip(self):
-        PIL = pytest.importorskip("PIL")
+        pytest.importorskip("PIL")
         import io
 
         from PIL import Image
@@ -228,7 +233,9 @@ class TestStandardTagCoverage:
         """UserComment lives in the sub-IFD, so IFD0 alone would miss it."""
         blob = build_tiff(
             [(TAG_MAKE, 2, b"Acme\x00")],
-            sub=[(detector.TAG_USER_COMMENT, 7, user_comment("Steps: 20, Model: Stable Diffusion"))],
+            sub=[
+                (detector.TAG_USER_COMMENT, 7, user_comment("Steps: 20, Model: Stable Diffusion"))
+            ],
         )
         found = detector.detect(scanned(blob))
         assert found.source_type is SourceType.AI_GENERATED
@@ -296,13 +303,15 @@ class TestUserCommentFieldTypes:
 
     @pytest.mark.parametrize("field_type", [7, 1], ids=["UNDEFINED (spec)", "BYTE (Pillow)"])
     def test_both_field_types_are_read(self, field_type):
-        blob = build_tiff([], sub=[(detector.TAG_USER_COMMENT, field_type, user_comment(self.PROMPT))])
+        blob = build_tiff(
+            [], sub=[(detector.TAG_USER_COMMENT, field_type, user_comment(self.PROMPT))]
+        )
         found = detector.detect(scanned(blob))
-        assert found is not None, "UserComment as type {} was skipped".format(field_type)
+        assert found is not None, f"UserComment as type {field_type} was skipped"
         assert found.source_type is SourceType.AI_GENERATED
 
     def test_a_real_pillow_written_user_comment_round_trips(self):
-        PIL = pytest.importorskip("PIL")
+        pytest.importorskip("PIL")
         import io
 
         from PIL import Image

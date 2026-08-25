@@ -14,8 +14,8 @@ from thumbor_ai_label.scan import Container, scan
 
 PIL = pytest.importorskip("PIL", reason="Pillow is only needed for encoder round-trips")
 
-from PIL import Image  # noqa: E402
-from PIL.PngImagePlugin import PngInfo  # noqa: E402
+from PIL import Image  # noqa: E402 - imports follow a runtime skip guard
+from PIL.PngImagePlugin import PngInfo  # noqa: E402 - imports follow a runtime skip guard
 
 XMP = (
     b'<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>'

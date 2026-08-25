@@ -19,7 +19,6 @@ parameters are sometimes written - lives in the latter.
 from __future__ import annotations
 
 import struct
-from typing import Dict, Optional, Tuple
 
 from ..scan import ScanResult, SegmentKind
 from .types import Confidence, Detection, SourceType
@@ -39,7 +38,7 @@ TAG_USER_COMMENT = 0x9286
 TAG_XP_COMMENT = 0x9C9C
 
 #: Read in this order; the order also fixes how evidence is presented.
-READ_TAGS: Tuple[Tuple[int, str], ...] = (
+READ_TAGS: tuple[tuple[int, str], ...] = (
     (TAG_SOFTWARE, "Software"),
     (TAG_PROCESSING_SOFTWARE, "ProcessingSoftware"),
     (TAG_MAKE, "Make"),
@@ -70,7 +69,7 @@ _COMMENT_CHARSETS = (
 
 #: (substring, state, generator label). Matched case-insensitively.
 #: High precision beats coverage: a false positive labels a real photograph.
-VENDOR_PATTERNS: Tuple[Tuple[str, SourceType, str], ...] = (
+VENDOR_PATTERNS: tuple[tuple[str, SourceType, str], ...] = (
     ("midjourney", SourceType.AI_GENERATED, "Midjourney"),
     ("stable diffusion", SourceType.AI_GENERATED, "Stable Diffusion"),
     ("automatic1111", SourceType.AI_GENERATED, "Stable Diffusion"),
@@ -114,8 +113,8 @@ def _decode_value(tag: int, field_type: int, raw: bytes, endian: str) -> str:
 
 
 def _walk_ifd(
-    blob: bytes, endian: str, offset: int, values: Dict[int, str]
-) -> Optional[int]:
+    blob: bytes, endian: str, offset: int, values: dict[int, str]
+) -> int | None:
     """Read the tags of interest from one IFD. Returns the Exif sub-IFD offset if seen."""
     if not 8 <= offset < len(blob) - 2:
         return None
@@ -156,7 +155,7 @@ def _walk_ifd(
     return sub_ifd
 
 
-def _read_tags(blob: bytes) -> Dict[int, str]:
+def _read_tags(blob: bytes) -> dict[int, str]:
     """Pull the tags of interest out of IFD0 and the Exif sub-IFD."""
     if len(blob) < 8:
         return {}
@@ -175,7 +174,7 @@ def _read_tags(blob: bytes) -> Dict[int, str]:
     if magic != 42:
         return {}
 
-    values: Dict[int, str] = {}
+    values: dict[int, str] = {}
     sub_ifd = _walk_ifd(blob, endian, ifd0, values)
     if sub_ifd is not None and sub_ifd != ifd0:
         # Only the one nested IFD is followed, so a pointer loop cannot spin.
@@ -183,11 +182,14 @@ def _read_tags(blob: bytes) -> Dict[int, str]:
     return values
 
 
-def detect(result: ScanResult) -> Optional[Detection]:
+def detect(result: ScanResult) -> Detection | None:
     for blob in result.exif:
         try:
             tags = _read_tags(blob)
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
+            # A malformed blob must not stop us checking the next one, and logging per
+            # blob would spam the request path on hostile input. The absence of tags is
+            # itself the signal.
             continue
         if not tags:
             continue
@@ -203,7 +205,7 @@ def detect(result: ScanResult) -> Optional[Detection]:
                         source_type=source_type,
                         confidence=Confidence.LOW,
                         detector=NAME,
-                        evidence="{}: {}".format(label, text[:MAX_EVIDENCE_CHARS]),
+                        evidence=f"{label}: {text[:MAX_EVIDENCE_CHARS]}",
                         generator=generator,
                     )
 

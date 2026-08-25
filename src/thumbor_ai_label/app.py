@@ -29,7 +29,7 @@ class AiLabelServiceApp(ThumborServiceApp):
         """
         try:
             settings = get_settings(context.config)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             logger.exception("[AiLabel] configuration is invalid; labelling will not work")
             if getattr(context.config, "AI_LABEL_STRICT_ERRORS", False):
                 raise
@@ -51,7 +51,7 @@ class AiLabelServiceApp(ThumborServiceApp):
 
         for entry in super().get_handlers():
             if len(entry) >= 2 and entry[1] is ImagingHandler:
-                entry = (entry[0], AiLabelImagingHandler) + tuple(entry[2:])
+                entry = (entry[0], AiLabelImagingHandler, *entry[2:])
             handlers.append(entry)
 
         return handlers

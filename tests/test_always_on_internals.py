@@ -6,12 +6,13 @@ import pytest
 
 pytest.importorskip("thumbor")
 
-from thumbor.config import Config  # noqa: E402
-from thumbor.filters import PHASE_POST_TRANSFORM, FiltersFactory  # noqa: E402
+from thumbor.config import Config
+from thumbor.filters import PHASE_POST_TRANSFORM, FiltersFactory
 
-import thumbor_ai_label.config  # noqa: E402,F401
-from thumbor_ai_label.app import AiLabelServiceApp  # noqa: E402
-from thumbor_ai_label.handler import AlwaysOnFiltersFactory  # noqa: E402
+import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from thumbor_ai_label.app import AiLabelServiceApp
+from thumbor_ai_label.handler import AlwaysOnFiltersFactory
+from thumbor_ai_label.icons import IconError
 
 
 class FakeModules:
@@ -42,7 +43,7 @@ class TestBootValidation:
             AI_LABEL_ICONS={"ai_generated": "/nowhere/x.png"},
             AI_LABEL_STRICT_ERRORS=True,
         )
-        with pytest.raises(Exception):
+        with pytest.raises(IconError):
             AiLabelServiceApp._validate(context)
 
     def test_unknown_detector_name_is_caught_at_boot(self, caplog):

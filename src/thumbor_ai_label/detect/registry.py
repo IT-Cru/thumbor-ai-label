@@ -15,14 +15,15 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import entry_points
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any
 
-from ..scan import ScanResult, SegmentKind
+from ..scan import ScanResult
 from . import exif as exif_detector
 from . import iptc as iptc_detector
-from .types import Confidence, Detection, SourceType
+from .types import Detection, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +58,11 @@ class Detector:
     run: Any
 
     @classmethod
-    def adapt(cls, name: str, target: Any) -> "Detector":
+    def adapt(cls, name: str, target: Any) -> Detector:
         detect = getattr(target, "detect", None)
         if not callable(detect):
             raise DetectorConfigurationError(
-                "detector {!r} ({!r}) has no callable detect()".format(name, target)
+                f"detector {name!r} ({target!r}) has no callable detect()"
             )
         requires = getattr(target, "REQUIRES", None)
         if requires is None:
@@ -73,27 +74,27 @@ class Detector:
         )
 
 
-def _discover() -> Dict[str, Any]:
-    found: Dict[str, Any] = {}
+def _discover() -> dict[str, Any]:
+    found: dict[str, Any] = {}
     try:
         points = entry_points(group=ENTRY_POINT_GROUP)
-    except Exception as exc:  # a broken third-party dist must not stop boot
+    except Exception as exc:  # noqa: BLE001 - a broken third-party dist must not stop boot
         logger.warning("could not read %s entry points: %s", ENTRY_POINT_GROUP, exc)
         return found
 
     for point in points:
         try:
             found[point.name] = point.load()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one bad detector must not hide the rest
             logger.warning("detector entry point %r failed to load: %s", point.name, exc)
     return found
 
 
-def load_detectors(names: Optional[Iterable[str]] = None) -> List[Detector]:
+def load_detectors(names: Iterable[str] | None = None) -> list[Detector]:
     """Resolve configured names into runnable detectors, in the order given."""
     requested = list(names) if names is not None else list(DEFAULT_DETECTORS)
 
-    available: Dict[str, Any] = dict(BUILTIN_DETECTORS)
+    available: dict[str, Any] = dict(BUILTIN_DETECTORS)
     # Discovery runs only if config asks for something not built in, so the common
     # case does not pay for it at startup.
     if any(name not in available for name in requested):
@@ -114,14 +115,14 @@ def load_detectors(names: Optional[Iterable[str]] = None) -> List[Detector]:
 
 async def run_detectors(
     scanned: ScanResult, detectors: Sequence[Detector]
-) -> List[Detection]:
+) -> list[Detection]:
     """Run detectors in order, stopping once one speaks conclusively.
 
     A detector whose required segment kinds are absent is skipped without being
     called - there is no point asking the XMP detector about a file with no XMP.
     """
     present = set(scanned.kinds())
-    detections: List[Detection] = []
+    detections: list[Detection] = []
 
     for detector in detectors:
         if detector.requires and not (detector.requires & present):
@@ -147,7 +148,7 @@ async def run_detectors(
     return detections
 
 
-def best_detection(detections: Sequence[Detection]) -> Optional[Detection]:
+def best_detection(detections: Sequence[Detection]) -> Detection | None:
     """Pick the detection that should drive the label.
 
     An AI claim outranks a not-AI claim at equal confidence: a file asserting both
@@ -157,5 +158,9 @@ def best_detection(detections: Sequence[Detection]) -> Optional[Detection]:
         return None
     return max(
         detections,
-        key=lambda d: (d.confidence.rank, d.source_type.is_ai, d.source_type is not SourceType.UNKNOWN),
+        key=lambda d: (
+            d.confidence.rank,
+            d.source_type.is_ai,
+            d.source_type is not SourceType.UNKNOWN,
+        ),
     )

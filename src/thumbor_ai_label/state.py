@@ -11,8 +11,6 @@ for the length of the request.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from .policy import Decision
 from .scan import ScanResult
 
@@ -30,7 +28,7 @@ def store_scan(context, result: ScanResult) -> None:
     setattr(context, SCAN_ATTR, result)
 
 
-def get_scan(context) -> Optional[ScanResult]:
+def get_scan(context) -> ScanResult | None:
     return getattr(context, SCAN_ATTR, None)
 
 
@@ -38,7 +36,7 @@ def store_decision(context, decision: Decision) -> None:
     setattr(context, DECISION_ATTR, decision)
 
 
-def get_decision(context) -> Optional[Decision]:
+def get_decision(context) -> Decision | None:
     return getattr(context, DECISION_ATTR, None)
 
 

@@ -39,7 +39,7 @@ def scan_webp(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
         data_end = data_start + size
 
         if data_end > n:
-            result.note("chunk {!r} at offset {} runs past end of buffer".format(fourcc, i))
+            result.note(f"chunk {fourcc!r} at offset {i} runs past end of buffer")
             result.truncated = True
             break
 

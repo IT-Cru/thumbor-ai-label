@@ -19,7 +19,6 @@ handler makes sure it exists before the response is assembled.
 from __future__ import annotations
 
 import json
-from typing import Optional, Tuple
 
 from thumbor.utils import logger
 
@@ -49,7 +48,7 @@ DEFAULT_DISCLOSURES = {
 }
 
 
-def _would_draw(context, decision: Decision, target: Optional[Tuple[int, int]]) -> Optional[bool]:
+def _would_draw(context, decision: Decision, target: tuple[int, int] | None) -> bool | None:
     """Whether an image request at these dimensions would carry a visible label.
 
     The distinction matters: below the minimum size no label is drawn, so the DOM
@@ -62,7 +61,7 @@ def _would_draw(context, decision: Decision, target: Optional[Tuple[int, int]]) 
         aspect = settings.icons.aspect(decision.state)
         icon_size = (max(1, round(aspect * 1000)), 1000)
         return fit_label(target, icon_size, settings.layout) is not None
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001 - report unknown rather than guess at the answer
         logger.exception("[AiLabel] could not determine whether a label would be drawn")
         return None
 
@@ -95,10 +94,10 @@ def build_payload(context, decision: Decision, target=None) -> dict:
     return payload
 
 
-def _unwrap_jsonp(body: str, callback: Optional[str]) -> Tuple[str, str, str]:
+def _unwrap_jsonp(body: str, callback: str | None) -> tuple[str, str, str]:
     """Split `cb({...});` into its parts. Returns ("", body, "") for plain JSON."""
     if callback:
-        prefix, suffix = "{}(".format(callback), ");"
+        prefix, suffix = f"{callback}(", ");"
         if body.startswith(prefix) and body.endswith(suffix):
             return prefix, body[len(prefix) : -len(suffix)], suffix
     return "", body, ""
@@ -143,6 +142,6 @@ def inject(context, results):
         document[PAYLOAD_KEY] = build_payload(context, decision, target)
         merged = prefix + json.dumps(document) + suffix
         return merged.encode("utf-8") if isinstance(results, bytes) else merged
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001 - a broken feature must not break an endpoint clients rely on
         logger.exception("[AiLabel] could not add the verdict to the meta response")
         return results

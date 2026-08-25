@@ -29,7 +29,8 @@ RUNS = 200
 def make(size, fmt="JPEG", **kwargs):
     image = Image.new("RGB", size)
     # Noise keeps the encoder from producing an unrealistically compressible file.
-    image.putdata([((x * 7) % 256, (x * 13) % 256, (x * 29) % 256) for x in range(size[0] * size[1])])
+    pixels = size[0] * size[1]
+    image.putdata([((x * 7) % 256, (x * 13) % 256, (x * 29) % 256) for x in range(pixels)])
     buf = io.BytesIO()
     image.save(buf, fmt, **kwargs)
     return buf.getvalue()
@@ -62,9 +63,7 @@ def main():
     for label, raw in cases:
         median, worst = measure(raw)
         print(
-            "{:<26} {:>9.1f}M {:>10.1f}us {:>10.1f}us".format(
-                label, len(raw) / 1_000_000, median, worst
-            )
+            f"{label:<26} {len(raw) / 1_000_000:>9.1f}M {median:>10.1f}us {worst:>10.1f}us"
         )
 
 

@@ -90,16 +90,16 @@ def xmp_packet(term: str | None = None, extra: str = "", full_uri: bool = True) 
     field = ""
     if term is not None:
         value = (CV + term) if full_uri else term
-        field = ' Iptc4xmpExt:DigitalSourceType="{}"'.format(value)
+        field = f' Iptc4xmpExt:DigitalSourceType="{value}"'
     return (
         '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
         '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
-        '<rdf:Description rdf:about="" xmlns:Iptc4xmpExt="{ns}" '
-        'xmlns:dc="http://purl.org/dc/elements/1.1/"{field}>{extra}</rdf:Description>'
+        f'<rdf:Description rdf:about="" xmlns:Iptc4xmpExt="{IPTC_NS}" '
+        f'xmlns:dc="http://purl.org/dc/elements/1.1/"{field}>{extra}</rdf:Description>'
         "</rdf:RDF></x:xmpmeta>"
-        '<?xpacket end="w"?>'.format(ns=IPTC_NS, field=field, extra=extra)
-    ).encode("utf-8")
+        '<?xpacket end="w"?>'
+    ).encode()
 
 
 def encode(image, fmt="JPEG", **kwargs) -> bytes:
@@ -163,7 +163,8 @@ def iptc_jpeg(index, term, caption, full_uri=True, size=(800, 600), dark=False):
 case("01-iptc-ai-generated.jpg", "IPTC trainedAlgorithmicMedia", "ai_generated", "ai_generated")(
     lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "01 expect: AI GENERATED")
 )
-case("02-iptc-ai-composite.jpg", "IPTC compositeWithTrainedAlgorithmicMedia", "ai_composite", "ai_composite")(
+case("02-iptc-ai-composite.jpg", "IPTC compositeWithTrainedAlgorithmicMedia",
+     "ai_composite", "ai_composite")(
     lambda: iptc_jpeg(1, "compositeWithTrainedAlgorithmicMedia", "02 expect: AI composite")
 )
 case("03-iptc-ai-modified.jpg", "IPTC algorithmicallyEnhanced", "ai_manipulated", "ai_manipulated")(
@@ -176,20 +177,23 @@ case("04-iptc-camera.jpg", "IPTC digitalCapture - a real photograph", None, None
 case("05-iptc-digital-art.jpg", "IPTC digitalArt - human-made digital work", None, None)(
     lambda: iptc_jpeg(4, "digitalArt", "05 expect: NO label")
 )
-case("06-iptc-composite-capture.jpg", "IPTC compositeCapture - composite of real photos", None, None)(
+case("06-iptc-composite-capture.jpg", "IPTC compositeCapture - composite of real photos",
+     None, None)(
     lambda: iptc_jpeg(0, "compositeCapture", "06 expect: NO label")
 )
 case("07-iptc-unrecognised-term.jpg", "IPTC term this build does not know", "unknown", "unknown",
      "An unfamiliar term must read as unknown, never as a clean bill of health.")(
     lambda: iptc_jpeg(1, "quantumHolographicMedia", "07 expect: UNKNOWN")
 )
-case("08-iptc-bare-term.jpg", "DigitalSourceType as a bare term, no CV URI", "ai_generated", "ai_generated")(
+case("08-iptc-bare-term.jpg", "DigitalSourceType as a bare term, no CV URI",
+     "ai_generated", "ai_generated")(
     lambda: iptc_jpeg(2, "trainedAlgorithmicMedia", "08 expect: AI GENERATED", full_uri=False)
 )
 
 # -- B. EXIF vendor hints, the weak fallback ------------------------------
 
-@case("09-exif-midjourney.jpg", "EXIF Software names a known generator", "ai_generated", "ai_generated",
+@case("09-exif-midjourney.jpg", "EXIF Software names a known generator",
+      "ai_generated", "ai_generated",
       "LOW confidence: inferred from a tool name, not read from a provenance field.")
 def _():
     image = base_image(3, caption="09 expect: AI GENERATED (low conf)")
@@ -203,7 +207,8 @@ def _():
     return encode(image, "JPEG", exif=exif_for(image, {TAG_SOFTWARE: "Adobe Photoshop 25.0"}))
 
 
-@case("11-exif-usercomment.jpg", "Generation parameters in EXIF UserComment", "ai_generated", "ai_generated",
+@case("11-exif-usercomment.jpg", "Generation parameters in EXIF UserComment",
+      "ai_generated", "ai_generated",
       "UserComment lives in the Exif sub-IFD; IFD0 alone would miss it.")
 def _():
     image = base_image(0, caption="11 expect: AI GENERATED (low conf)")
@@ -262,7 +267,8 @@ case("16-webp-iptc-ai.webp", "WebP carrying XMP", "ai_generated", "ai_generated"
 )
 
 
-@case("17-png-raw-profile-ai.png", "PNG with ImageMagick hex-wrapped XMP", "ai_generated", "ai_generated",
+@case("17-png-raw-profile-ai.png", "PNG with ImageMagick hex-wrapped XMP",
+      "ai_generated", "ai_generated",
       "How metadata survives an ImageMagick step - common in editorial pipelines.")
 def _():
     from PIL.PngImagePlugin import PngInfo
@@ -271,7 +277,8 @@ def _():
     body = "\n" + "xmp" + "\n" + str(len(packet)) + "\n" + packet.hex()
     info = PngInfo()
     info.add_text("Raw profile type xmp", body)
-    return encode(base_image(1, caption="17 PNG raw profile expect: AI GENERATED"), "PNG", pnginfo=info)
+    image = base_image(1, caption="17 PNG raw profile expect: AI GENERATED")
+    return encode(image, "PNG", pnginfo=info)
 
 
 # -- E. Edge cases --------------------------------------------------------
@@ -288,7 +295,8 @@ def _():
     )
 
 
-@case("19-extended-xmp-ai.jpg", "Extended XMP split across APP1 segments", "ai_generated", "ai_generated",
+@case("19-extended-xmp-ai.jpg", "Extended XMP split across APP1 segments",
+      "ai_generated", "ai_generated",
       "Over ~64 KB, XMP must be split. Hand-built: Pillow refuses to write this.")
 def _():
     jpeg = encode(base_image(3, caption="19 extended XMP expect: AI GENERATED"), "JPEG")
@@ -298,7 +306,7 @@ def _():
     chunks = [filler[i:i + 60000] for i in range(0, len(filler), 60000)]
     segments = [XMP_SIG + packet]
     offset = 0
-    for seq, chunk in enumerate(chunks):
+    for chunk in chunks:
         segments.append(
             XMP_EXT_SIG + guid + struct.pack(">I", len(filler)) + struct.pack(">I", offset) + chunk
         )
@@ -313,17 +321,22 @@ def _():
     return splice_app1(jpeg, [XMP_SIG + b'<?xpacket begin=""?><x:xmpmeta><rdf:RDF><rdf:Desc'])
 
 
-case("21-small-thumbnail.jpg", "AI image below the minimum label size", "ai_generated", "ai_generated",
+case("21-small-thumbnail.jpg", "AI image below the minimum label size",
+     "ai_generated", "ai_generated",
      "DETECTION says ai_generated, but NO label is drawn: 80 px is under the 120 px floor. "
      "Verify by eye, not by the manifest.")(
     lambda: iptc_jpeg(0, "trainedAlgorithmicMedia", "21 small", size=(140, 80))
 )
 case("22-panorama-ai.jpg", "Very wide AI image", "ai_generated", "ai_generated",
      "Label size tracks the SHORTER edge, so it should not look tiny here.")(
-    lambda: iptc_jpeg(1, "trainedAlgorithmicMedia", "22 panorama expect: AI GENERATED", size=(2000, 500))
+    lambda: iptc_jpeg(
+        1, "trainedAlgorithmicMedia", "22 panorama expect: AI GENERATED", size=(2000, 500)
+    )
 )
 case("23-tall-portrait-ai.jpg", "Very tall AI image", "ai_generated", "ai_generated")(
-    lambda: iptc_jpeg(2, "trainedAlgorithmicMedia", "23 portrait expect: AI GENERATED", size=(500, 1400))
+    lambda: iptc_jpeg(
+        2, "trainedAlgorithmicMedia", "23 portrait expect: AI GENERATED", size=(500, 1400)
+    )
 )
 case("24-dark-ai.jpg", "Dark AI image", "ai_generated", "ai_generated",
      "For checking contrast, and for trying AI_LABEL_ICON_SET = 'eu-white'.")(
@@ -361,7 +374,7 @@ def main() -> None:
         )
 
     (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print("\nwrote {} images + manifest.json to {}".format(len(manifest), OUT))
+    print(f"\nwrote {len(manifest)} images + manifest.json to {OUT}")
 
 
 if __name__ == "__main__":

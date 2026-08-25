@@ -103,9 +103,7 @@ def test_cost_does_not_scale_with_image_size():
     elapsed = time.perf_counter() - start
 
     assert result.xmp == [XMP]
-    assert elapsed < 0.1, "scanning 64 MB took {:.3f}s; the walk is reading image data".format(
-        elapsed
-    )
+    assert elapsed < 0.1, f"scanning 64 MB took {elapsed:.3f}s; the walk is reading image data"
 
 
 def test_a_hostile_file_still_reports_that_metadata_exists():
@@ -136,7 +134,7 @@ def test_segment_repr_does_not_leak_the_payload():
     result = scan(build_jpeg([app1_xmp(secret)]))
     text = repr(result.segments[0])
     assert b"real person" not in text.encode()
-    assert "bytes={}".format(len(secret)) in text
+    assert f"bytes={len(secret)}" in text
 
 
 def test_webp_walker_rejects_a_non_webp_riff_when_called_directly():

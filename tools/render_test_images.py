@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import io
 import json
 import pathlib
 
@@ -21,7 +20,7 @@ from thumbor.config import Config
 from thumbor.context import Context
 from thumbor.importer import Importer
 
-import thumbor_ai_label.config  # noqa: F401
+import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
 from thumbor_ai_label.label import apply
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "tests" / "images"
@@ -85,9 +84,7 @@ def main() -> None:
     font = ImageFont.load_default(size=13)
     draw.text(
         (pad, 8),
-        "icon set: {}    policy: {}    style width: {}px".format(
-            args.icon_set, args.policy, args.width
-        ),
+        f"icon set: {args.icon_set}    policy: {args.policy}    style width: {args.width}px",
         fill=(20, 20, 20),
         font=font,
     )
@@ -106,10 +103,10 @@ def main() -> None:
     # Default to the working directory, not the corpus: a generated sheet is an
     # artefact, and dropping it among the fixtures would make it look like one.
     out = pathlib.Path(args.out) if args.out else pathlib.Path(
-        "contact-sheet-{}-{}.png".format(args.icon_set, args.policy)
+        f"contact-sheet-{args.icon_set}-{args.policy}.png"
     )
     sheet.save(out)
-    print("wrote {} ({}x{})".format(out, sheet.width, sheet.height))
+    print(f"wrote {out} ({sheet.width}x{sheet.height})")
 
 
 if __name__ == "__main__":

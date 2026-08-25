@@ -1,6 +1,7 @@
 """Thumbor plugin: AI provenance detection and visible AI labelling."""
 
-from importlib.metadata import PackageNotFoundError, version as _version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 
 try:
     #: Single source of truth is the distribution metadata built from pyproject.toml,

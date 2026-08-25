@@ -17,7 +17,6 @@ prefix it bound to the IPTC extension namespace.
 from __future__ import annotations
 
 import re
-from typing import List, Optional
 
 from ..scan import ScanResult, SegmentKind
 from .types import (
@@ -54,7 +53,7 @@ def _decode(packet: bytes) -> str:
     return packet.decode("utf-8", errors="replace")
 
 
-def _prefixes(text: str) -> List[str]:
+def _prefixes(text: str) -> list[str]:
     found = [match.group(1) for match in _NS_DECL.finditer(text)]
     # A packet can bind the namespace more than once, and some writers emit the
     # field without ever declaring the namespace - fall back to the conventional
@@ -64,8 +63,8 @@ def _prefixes(text: str) -> List[str]:
     return found
 
 
-def _find_value(text: str, prefix: str) -> Optional[str]:
-    field = re.escape("{}:DigitalSourceType".format(prefix))
+def _find_value(text: str, prefix: str) -> str | None:
+    field = re.escape(f"{prefix}:DigitalSourceType")
 
     # Attribute form: <rdf:Description Iptc4xmpExt:DigitalSourceType="..."/>
     attribute = re.search(field + r'\s*=\s*["\']([^"\']*)["\']', text)
@@ -80,7 +79,7 @@ def _find_value(text: str, prefix: str) -> Optional[str]:
     return None
 
 
-def detect(result: ScanResult) -> Optional[Detection]:
+def detect(result: ScanResult) -> Detection | None:
     for packet in result.xmp:
         text = _decode(packet)
         for prefix in _prefixes(text):
@@ -97,7 +96,7 @@ def detect(result: ScanResult) -> Optional[Detection]:
                     source_type=SourceType.UNKNOWN,
                     confidence=Confidence.HIGH,
                     detector=NAME,
-                    evidence="unrecognised DigitalSourceType: {}".format(term),
+                    evidence=f"unrecognised DigitalSourceType: {term}",
                 )
 
             return Detection(

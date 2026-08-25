@@ -6,7 +6,6 @@ Importing this module registers the keys with Thumbor's config system.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 from thumbor.config import Config
 
@@ -114,7 +113,7 @@ class Settings:
     """Config resolved once into the objects the request path needs."""
 
     enabled: bool
-    detectors: List[Detector]
+    detectors: list[Detector]
     policy: Policy
     min_confidence: Confidence
     icons: IconSet
@@ -122,7 +121,7 @@ class Settings:
     strict_errors: bool
 
     @classmethod
-    def from_config(cls, config) -> "Settings":
+    def from_config(cls, config) -> Settings:
         return cls(
             enabled=bool(config.AI_LABEL_ENABLED),
             detectors=load_detectors(config.AI_LABEL_DETECTORS),
@@ -152,7 +151,7 @@ def get_settings(config) -> Settings:
     Config is shared for the life of the process, so icons are decoded and
     detectors resolved a single time rather than per request.
     """
-    cached: Optional[Settings] = getattr(config, SETTINGS_ATTR, None)
+    cached: Settings | None = getattr(config, SETTINGS_ATTR, None)
     if cached is None:
         cached = Settings.from_config(config)
         setattr(config, SETTINGS_ATTR, cached)

@@ -24,17 +24,17 @@ from .types import (
 )
 
 __all__ = [
-    "Confidence",
-    "Detection",
-    "SourceType",
-    "Detector",
-    "DetectorConfigurationError",
-    "load_detectors",
-    "run_detectors",
-    "best_detection",
-    "resolve_iptc_term",
-    "IPTC_SOURCE_TYPES",
     "BUILTIN_DETECTORS",
     "DEFAULT_DETECTORS",
     "ENTRY_POINT_GROUP",
+    "IPTC_SOURCE_TYPES",
+    "Confidence",
+    "Detection",
+    "Detector",
+    "DetectorConfigurationError",
+    "SourceType",
+    "best_detection",
+    "load_detectors",
+    "resolve_iptc_term",
+    "run_detectors",
 ]

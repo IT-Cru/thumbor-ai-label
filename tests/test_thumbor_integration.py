@@ -14,16 +14,16 @@ import pytest
 
 pytest.importorskip("thumbor", reason="the Thumbor layer needs Thumbor installed")
 
-from PIL import Image  # noqa: E402
-from thumbor.config import Config  # noqa: E402
-from thumbor.context import Context  # noqa: E402
-from thumbor.importer import Importer  # noqa: E402
+from PIL import Image
+from thumbor.config import Config
+from thumbor.context import Context
+from thumbor.importer import Importer
 
-from thumbor_ai_label.label import apply, decide_for_request  # noqa: E402
-from thumbor_ai_label.detect import SourceType  # noqa: E402
-from thumbor_ai_label.filters.ai_label import Filter  # noqa: E402
-from thumbor_ai_label.policy import Reason  # noqa: E402
-from thumbor_ai_label.state import get_scan  # noqa: E402
+from thumbor_ai_label.detect import SourceType
+from thumbor_ai_label.filters.ai_label import Filter
+from thumbor_ai_label.label import apply, decide_for_request
+from thumbor_ai_label.policy import Reason
+from thumbor_ai_label.state import get_scan
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
@@ -32,8 +32,8 @@ NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
 def xmp_for(term: str) -> bytes:
     return (
         '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description '
-        '{ns} Iptc4xmpExt:DigitalSourceType="{cv}{term}"/></rdf:RDF></x:xmpmeta>'
-    ).format(ns=NS, cv=CV, term=term).encode()
+        f'{NS} Iptc4xmpExt:DigitalSourceType="{CV}{term}"/></rdf:RDF></x:xmpmeta>'
+    ).encode()
 
 
 def make_jpeg(term=None, software=None, size=(600, 400), colour=(90, 120, 160)) -> bytes:
@@ -192,7 +192,9 @@ class TestDrawing:
         assert not corner_changed(before, after)
 
     def test_strict_errors_turns_a_broken_icon_into_a_failure(self):
-        with pytest.raises(Exception):
+        from thumbor_ai_label.icons import IconError
+
+        with pytest.raises(IconError):
             self.run_filter(
                 make_jpeg(term="trainedAlgorithmicMedia"),
                 AI_LABEL_ICONS={"ai_generated": "/nonexistent/icon.png"},

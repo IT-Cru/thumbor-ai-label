@@ -38,7 +38,7 @@ class AiLabelEngineMixin:
             if not self.context.config.AI_LABEL_ENABLED:
                 return
             store_scan(self.context, scan(buffer))
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001
             # Never let provenance scanning break image loading. Without a stored
             # scan the filter simply has nothing to work from, and the configured
             # policy decides what that means.

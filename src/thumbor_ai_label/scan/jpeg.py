@@ -13,8 +13,6 @@ APP11 (how C2PA is carried).
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 from .types import ScanLimits, ScanResult, SegmentKind
 
 SOI = 0xD8
@@ -46,14 +44,14 @@ def scan_jpeg(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
     n = len(view)
     i = 2  # past SOI
 
-    ext_xmp: Dict[bytes, List[Tuple[int, bytes]]] = {}
-    ext_xmp_total: Dict[bytes, int] = {}
-    jumbf_parts: Dict[int, Dict[int, bytes]] = {}
-    jumbf_head: Dict[int, bytes] = {}
+    ext_xmp: dict[bytes, list[tuple[int, bytes]]] = {}
+    ext_xmp_total: dict[bytes, int] = {}
+    jumbf_parts: dict[int, dict[int, bytes]] = {}
+    jumbf_head: dict[int, bytes] = {}
 
     while i < n:
         if view[i] != 0xFF:
-            result.note("marker desync at offset {}".format(i))
+            result.note(f"marker desync at offset {i}")
             result.truncated = True
             break
 
@@ -70,7 +68,7 @@ def scan_jpeg(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
 
         if marker == 0x00:
             # 0xFF00 is byte stuffing, which is only legal inside entropy data.
-            result.note("byte stuffing outside scan data at offset {}".format(i - 2))
+            result.note(f"byte stuffing outside scan data at offset {i - 2}")
             result.truncated = True
             break
         if marker in _STANDALONE:
@@ -87,19 +85,19 @@ def scan_jpeg(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
             break
 
         if i + 2 > n:
-            result.note("truncated in segment length at offset {}".format(i))
+            result.note(f"truncated in segment length at offset {i}")
             result.truncated = True
             break
 
         seglen = _be16(view, i)
         if seglen < 2:
-            result.note("invalid segment length {} at offset {}".format(seglen, i))
+            result.note(f"invalid segment length {seglen} at offset {i}")
             result.truncated = True
             break
 
         end = i + seglen
         if end > n:
-            result.note("segment at offset {} runs past end of buffer".format(i))
+            result.note(f"segment at offset {i} runs past end of buffer")
             result.truncated = True
             break
 
@@ -119,8 +117,8 @@ def _handle_app1(
     payload: memoryview,
     result: ScanResult,
     limits: ScanLimits,
-    ext_xmp: Dict[bytes, List[Tuple[int, bytes]]],
-    ext_xmp_total: Dict[bytes, int],
+    ext_xmp: dict[bytes, list[tuple[int, bytes]]],
+    ext_xmp_total: dict[bytes, int],
 ) -> None:
     if payload[: len(EXIF_SIG)] == EXIF_SIG:
         # Hand over the TIFF header onwards; the Exif\0\0 framing is JPEG's, not
@@ -146,9 +144,8 @@ def _handle_app1(
 
         if total > limits.max_xmp_bytes:
             result.note(
-                "extended XMP declares {} bytes, over the {} budget; skipped".format(
-                    total, limits.max_xmp_bytes
-                )
+                f"extended XMP declares {total} bytes, over the "
+                f"{limits.max_xmp_bytes} budget; skipped"
             )
             result.truncated = True
             return
@@ -160,8 +157,8 @@ def _handle_app1(
 def _handle_app11(
     payload: memoryview,
     result: ScanResult,
-    parts: Dict[int, Dict[int, bytes]],
-    heads: Dict[int, bytes],
+    parts: dict[int, dict[int, bytes]],
+    heads: dict[int, bytes],
 ) -> None:
     # CI('JP') + En(2, box instance) + Z(4, packet sequence) + LBox(4) + TBox(4)
     if payload[: len(JUMBF_SIG)] != JUMBF_SIG:
@@ -178,15 +175,15 @@ def _handle_app11(
 
     bucket = parts.setdefault(instance, {})
     if sequence in bucket:
-        result.note("duplicate JUMBF packet sequence {} for instance {}".format(sequence, instance))
+        result.note(f"duplicate JUMBF packet sequence {sequence} for instance {instance}")
         return
     bucket[sequence] = body
     heads.setdefault(instance, box_header)
 
 
 def _flush_extended_xmp(
-    ext_xmp: Dict[bytes, List[Tuple[int, bytes]]],
-    totals: Dict[bytes, int],
+    ext_xmp: dict[bytes, list[tuple[int, bytes]]],
+    totals: dict[bytes, int],
     result: ScanResult,
     limits: ScanLimits,
 ) -> None:
@@ -222,8 +219,8 @@ def _flush_extended_xmp(
 
 
 def _flush_jumbf(
-    parts: Dict[int, Dict[int, bytes]],
-    heads: Dict[int, bytes],
+    parts: dict[int, dict[int, bytes]],
+    heads: dict[int, bytes],
     result: ScanResult,
     limits: ScanLimits,
 ) -> None:
@@ -236,6 +233,6 @@ def _flush_jumbf(
             result.add(
                 SegmentKind.JUMBF,
                 bytes(assembled),
-                "jpeg:APP11/jumbf#{}".format(instance),
+                f"jpeg:APP11/jumbf#{instance}",
                 limits,
             )

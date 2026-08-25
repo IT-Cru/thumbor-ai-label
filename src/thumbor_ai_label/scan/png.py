@@ -32,11 +32,11 @@ def _inflate(data: bytes, cap: int, result: ScanResult, what: str) -> bytes:
         obj = zlib.decompressobj()
         out = obj.decompress(data, cap)
         if obj.unconsumed_tail:
-            result.note("{} decompressed past the {} byte cap; truncated".format(what, cap))
+            result.note(f"{what} decompressed past the {cap} byte cap; truncated")
             result.truncated = True
         return out
     except zlib.error as exc:
-        result.note("{} failed to decompress: {}".format(what, exc))
+        result.note(f"{what} failed to decompress: {exc}")
         result.truncated = True
         return b""
 
@@ -56,7 +56,7 @@ def scan_png(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
         # change what a provenance assertion says, and rejecting on it would drop
         # metadata that every other tool reads fine.
         if data_end + 4 > n:
-            result.note("chunk {!r} at offset {} runs past end of buffer".format(ctype, i))
+            result.note(f"chunk {ctype!r} at offset {i} runs past end of buffer")
             result.truncated = True
             break
 
@@ -108,10 +108,10 @@ def _handle_itxt(payload: memoryview, result: ScanResult, limits: ScanLimits) ->
 
     if compressed:
         if method != 0:
-            result.note("iTXt uses unknown compression method {}".format(method))
+            result.note(f"iTXt uses unknown compression method {method}")
             result.truncated = True
             return
-        rest = _inflate(rest, limits.max_xmp_bytes, result, "iTXt {!r}".format(keyword))
+        rest = _inflate(rest, limits.max_xmp_bytes, result, f"iTXt {keyword!r}")
 
     if keyword == XMP_KEYWORD:
         result.add(SegmentKind.XMP, rest, "png:iTXt", limits)
@@ -125,7 +125,7 @@ def _handle_text(
     raw = bytes(payload)
     sep = raw.find(b"\x00")
     if sep < 0:
-        result.note("malformed {!r} chunk".format(ctype))
+        result.note(f"malformed {ctype!r} chunk")
         result.truncated = True
         return
     keyword = raw[:sep]
@@ -137,7 +137,7 @@ def _handle_text(
         if not body:
             return
         # zTXt puts a compression-method byte between the keyword and the data.
-        body = _inflate(body[1:], limits.max_xmp_bytes, result, "zTXt {!r}".format(keyword))
+        body = _inflate(body[1:], limits.max_xmp_bytes, result, f"zTXt {keyword!r}")
 
     _handle_raw_profile(keyword, body, result, limits, "png:{}".format(ctype.decode("ascii")))
 
@@ -152,7 +152,7 @@ def _handle_raw_profile(
 
     lines = body.split(b"\n", 3)
     if len(lines) < 4:
-        result.note("raw profile {!r} has no hex payload".format(keyword))
+        result.note(f"raw profile {keyword!r} has no hex payload")
         result.truncated = True
         return
 
@@ -160,10 +160,10 @@ def _handle_raw_profile(
     try:
         decoded = bytes.fromhex(hex_text.decode("ascii"))
     except (ValueError, UnicodeDecodeError):
-        result.note("raw profile {!r} is not valid hex".format(keyword))
+        result.note(f"raw profile {keyword!r} is not valid hex")
         result.truncated = True
         return
 
     if kind is SegmentKind.EXIF and decoded[:6] == b"Exif\x00\x00":
         decoded = decoded[6:]
-    result.add(kind, decoded, "{}/raw-profile".format(origin), limits)
+    result.add(kind, decoded, f"{origin}/raw-profile", limits)

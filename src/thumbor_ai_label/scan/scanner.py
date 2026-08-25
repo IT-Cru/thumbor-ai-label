@@ -6,15 +6,13 @@ so a file is never parsed twice no matter how many detectors are enabled.
 
 from __future__ import annotations
 
-from typing import Union
-
 from . import jpeg, png, webp
 from .types import DEFAULT_LIMITS, Container, ScanLimits, ScanResult
 
-Buffer = Union[bytes, bytearray, memoryview]
+Buffer = bytes | bytearray | memoryview
 
 
-def sniff(view: memoryview) -> "Container | None":
+def sniff(view: memoryview) -> Container | None:
     if len(view) >= 3 and view[:3] == jpeg.MAGIC:
         return Container.JPEG
     if len(view) >= 8 and view[:8] == png.MAGIC:
@@ -50,9 +48,10 @@ def scan(data: Buffer, limits: ScanLimits = DEFAULT_LIMITS) -> ScanResult:
             png.scan_png(view, result, limits)
         else:
             webp.scan_webp(view, result, limits)
-    except Exception as exc:  # defensive: the walkers are bounds-checked, but this
-        # runs on untrusted bytes in a request path and must not propagate.
-        result.note("scan aborted: {}: {}".format(type(exc).__name__, exc))
+    except Exception as exc:  # noqa: BLE001
+        # Defensive: the walkers are bounds-checked, but this runs on untrusted bytes
+        # in a request path and must not propagate.
+        result.note(f"scan aborted: {type(exc).__name__}: {exc}")
         result.truncated = True
 
     return result

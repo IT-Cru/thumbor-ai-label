@@ -94,7 +94,8 @@ def build(state: str) -> Image.Image:
 
     stroke = 20 * scale
     if state == "unknown":
-        draw_question(draw, [canvas * 0.34, canvas * 0.28, canvas * 0.66, canvas * 0.72], stroke, LIGHT)
+        box = [canvas * 0.34, canvas * 0.28, canvas * 0.66, canvas * 0.72]
+        draw_question(draw, box, stroke, LIGHT)
     else:
         top, bottom = canvas * 0.33, canvas * 0.67
         draw_a(draw, [canvas * 0.26, top, canvas * 0.52, bottom], stroke, LIGHT)
@@ -107,7 +108,7 @@ def build(state: str) -> Image.Image:
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=ring)
         draw.line(
             [(cx - r * 0.42, cy + r * 0.42), (cx + r * 0.42, cy - r * 0.42)],
-            fill=DISC[:3] + (255,),
+            fill=(*DISC[:3], 255),
             width=int(7 * scale),
         )
 
@@ -117,9 +118,9 @@ def build(state: str) -> Image.Image:
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for state in RINGS:
-        path = OUT / "{}.png".format(state)
+        path = OUT / f"{state}.png"
         build(state).save(path, "PNG", optimize=True)
-        print("wrote {} ({} bytes)".format(path.name, path.stat().st_size))
+        print(f"wrote {path.name} ({path.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

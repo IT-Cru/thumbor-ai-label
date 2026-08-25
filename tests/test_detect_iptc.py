@@ -4,7 +4,7 @@ import time
 
 from thumbor_ai_label.detect import Confidence, SourceType
 from thumbor_ai_label.detect import iptc as detector
-from thumbor_ai_label.scan import ScanResult, ScanLimits, SegmentKind
+from thumbor_ai_label.scan import ScanLimits, ScanResult, SegmentKind
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 NS = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
@@ -18,21 +18,20 @@ def scanned(*packets: bytes) -> ScanResult:
 
 
 def packet(body: str) -> bytes:
-    return ('<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF>' + body + "</rdf:RDF></x:xmpmeta>").encode()
+    document = '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF>' + body + "</rdf:RDF></x:xmpmeta>"
+    return document.encode()
 
 
 def attribute(term: str, prefix: str = "Iptc4xmpExt") -> bytes:
     return packet(
-        '<rdf:Description xmlns:{p}="{ns}" {p}:DigitalSourceType="{cv}{t}"/>'.format(
-            p=prefix, ns=NS, cv=CV, t=term
-        )
+        f'<rdf:Description xmlns:{prefix}="{NS}" {prefix}:DigitalSourceType="{CV}{term}"/>'
     )
 
 
 def element(term: str, prefix: str = "Iptc4xmpExt") -> bytes:
     return packet(
-        '<rdf:Description xmlns:{p}="{ns}"><{p}:DigitalSourceType>{cv}{t}'
-        "</{p}:DigitalSourceType></rdf:Description>".format(p=prefix, ns=NS, cv=CV, t=term)
+        f'<rdf:Description xmlns:{prefix}="{NS}"><{prefix}:DigitalSourceType>{CV}{term}'
+        f"</{prefix}:DigitalSourceType></rdf:Description>"
     )
 
 
@@ -54,9 +53,7 @@ class TestVocabulary:
 
     def test_bare_term_without_the_cv_uri(self):
         raw = packet(
-            '<rdf:Description xmlns:i="{ns}" i:DigitalSourceType="trainedAlgorithmicMedia"/>'.format(
-                ns=NS
-            )
+            f'<rdf:Description xmlns:i="{NS}" i:DigitalSourceType="trainedAlgorithmicMedia"/>'
         )
         assert detector.detect(scanned(raw)).source_type is SourceType.AI_GENERATED
 
@@ -80,26 +77,20 @@ class TestShapes:
 
     def test_conventional_prefix_without_a_namespace_declaration(self):
         raw = packet(
-            '<rdf:Description Iptc4xmpExt:DigitalSourceType="{cv}trainedAlgorithmicMedia"/>'.format(
-                cv=CV
-            )
+            f'<rdf:Description Iptc4xmpExt:DigitalSourceType="{CV}trainedAlgorithmicMedia"/>'
         )
         assert detector.detect(scanned(raw)).source_type is SourceType.AI_GENERATED
 
     def test_single_quoted_attribute(self):
         raw = packet(
-            "<rdf:Description xmlns:i=\"{ns}\" i:DigitalSourceType='{cv}trainedAlgorithmicMedia'/>".format(
-                ns=NS, cv=CV
-            )
+            f"<rdf:Description xmlns:i=\"{NS}\" i:DigitalSourceType='{CV}trainedAlgorithmicMedia'/>"
         )
         assert detector.detect(scanned(raw)).source_type is SourceType.AI_GENERATED
 
     def test_element_with_attributes_on_the_tag(self):
         raw = packet(
-            '<rdf:Description xmlns:i="{ns}"><i:DigitalSourceType rdf:parseType="Literal">'
-            "{cv}trainedAlgorithmicMedia</i:DigitalSourceType></rdf:Description>".format(
-                ns=NS, cv=CV
-            )
+            f'<rdf:Description xmlns:i="{NS}"><i:DigitalSourceType rdf:parseType="Literal">'
+            f"{CV}trainedAlgorithmicMedia</i:DigitalSourceType></rdf:Description>"
         )
         assert detector.detect(scanned(raw)).source_type is SourceType.AI_GENERATED
 
@@ -112,7 +103,9 @@ class TestShapes:
         assert detector.detect(scanned(raw)).source_type is SourceType.AI_GENERATED
 
     def test_first_packet_carrying_the_field_wins(self):
-        result = scanned(packet('<rdf:Description dc:title="x"/>'), attribute("trainedAlgorithmicMedia"))
+        result = scanned(
+            packet('<rdf:Description dc:title="x"/>'), attribute("trainedAlgorithmicMedia")
+        )
         assert detector.detect(result).source_type is SourceType.AI_GENERATED
 
 
@@ -124,15 +117,14 @@ class TestNothingToSay:
         assert detector.detect(ScanResult()) is None
 
     def test_empty_value(self):
-        raw = packet('<rdf:Description xmlns:i="{ns}" i:DigitalSourceType=""/>'.format(ns=NS))
+        raw = packet(f'<rdf:Description xmlns:i="{NS}" i:DigitalSourceType=""/>')
         found = detector.detect(scanned(raw))
         assert found.source_type is SourceType.UNKNOWN
 
     def test_similarly_named_field_is_not_matched(self):
         raw = packet(
-            '<rdf:Description xmlns:i="{ns}" i:DigitalSourceTypeExtra="{cv}trainedAlgorithmicMedia"/>'.format(
-                ns=NS, cv=CV
-            )
+            f'<rdf:Description xmlns:i="{NS}" '
+            f'i:DigitalSourceTypeExtra="{CV}trainedAlgorithmicMedia"/>'
         )
         assert detector.detect(scanned(raw)) is None
 

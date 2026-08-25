@@ -20,14 +20,14 @@ import pytest
 
 pytest.importorskip("thumbor", reason="the corpus runs through the Thumbor layer")
 
-from thumbor.config import Config  # noqa: E402
-from thumbor.context import Context  # noqa: E402
-from thumbor.importer import Importer  # noqa: E402
+from thumbor.config import Config
+from thumbor.context import Context
+from thumbor.importer import Importer
 
-import thumbor_ai_label.config  # noqa: E402,F401
-from thumbor_ai_label.label import decide_for_request  # noqa: E402
-from thumbor_ai_label.scan import scan  # noqa: E402
-from thumbor_ai_label.state import store_scan  # noqa: E402
+import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from thumbor_ai_label.label import decide_for_request
+from thumbor_ai_label.scan import scan
+from thumbor_ai_label.state import store_scan
 
 CORPUS = pathlib.Path(__file__).resolve().parent / "images"
 MANIFEST = json.loads((CORPUS / "manifest.json").read_text())
@@ -55,7 +55,7 @@ class TestManifestIntegrity:
 
     def test_every_manifest_entry_exists_on_disk(self):
         missing = [e["file"] for e in MANIFEST if not (CORPUS / e["file"]).is_file()]
-        assert not missing, "manifest lists files that are not present: {}".format(missing)
+        assert not missing, f"manifest lists files that are not present: {missing}"
 
     def test_every_image_on_disk_is_in_the_manifest(self):
         """An unlisted image is an untested image."""
@@ -65,8 +65,9 @@ class TestManifestIntegrity:
             for p in CORPUS.iterdir()
             if p.is_file() and p.name not in NON_IMAGES and not p.name.startswith("contact-sheet")
         }
-        assert on_disk == listed, "unlisted: {}, listed but absent: {}".format(
-            sorted(on_disk - listed), sorted(listed - on_disk)
+        assert on_disk == listed, (
+            f"unlisted: {sorted(on_disk - listed)}, "
+            f"listed but absent: {sorted(listed - on_disk)}"
         )
 
     def test_every_entry_declares_both_policies(self):

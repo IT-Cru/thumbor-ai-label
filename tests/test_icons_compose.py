@@ -7,14 +7,14 @@ from thumbor_ai_label.compose import (
     Layout,
     Position,
     apply_label,
+    fit_label,
     label_height,
     label_margin,
     label_origin,
-    fit_label,
     paste_label,
 )
 from thumbor_ai_label.detect import SourceType
-from thumbor_ai_label.icons import LABEL_STATES, BUNDLED_SETS, IconError, IconSet
+from thumbor_ai_label.icons import BUNDLED_SETS, LABEL_STATES, IconError, IconSet
 
 
 class TestIconSet:
@@ -76,7 +76,7 @@ class TestIconSet:
 
     def test_an_unknown_state_in_overrides_is_rejected(self):
         with pytest.raises(IconError, match="unknown label states"):
-            IconSet(overrides={"ai_hallucinated": "/tmp/x.png"})
+            IconSet(overrides={"ai_hallucinated": "nowhere/x.png"})
 
     def test_a_missing_packaged_icon_is_reported(self, tmp_path):
         with pytest.raises(IconError, match="is missing"):

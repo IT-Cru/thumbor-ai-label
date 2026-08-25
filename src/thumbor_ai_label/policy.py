@@ -5,9 +5,9 @@ This is where the fail-closed behaviour lives. No Thumbor import.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Sequence
 
 from .detect import Confidence, Detection, SourceType, best_detection
 from .scan import ScanResult, SegmentKind
@@ -50,9 +50,9 @@ class Reason(str, Enum):
 class Decision:
     """The label to draw, or None, plus the reasoning that produced it."""
 
-    state: Optional[SourceType]
+    state: SourceType | None
     reason: Reason
-    detection: Optional[Detection] = None
+    detection: Detection | None = None
 
     @property
     def should_label(self) -> bool:
@@ -104,7 +104,7 @@ def decide(
 def _inconclusive(
     scanned: ScanResult,
     policy: Policy,
-    detection: Optional[Detection],
+    detection: Detection | None,
     reason: Reason,
 ) -> Decision:
     if policy is Policy.STRICT:

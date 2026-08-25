@@ -16,12 +16,12 @@ from .types import (
 )
 
 __all__ = [
+    "DEFAULT_LIMITS",
+    "Container",
+    "RawSegment",
+    "ScanLimits",
+    "ScanResult",
+    "SegmentKind",
     "scan",
     "sniff",
-    "Container",
-    "SegmentKind",
-    "RawSegment",
-    "ScanResult",
-    "ScanLimits",
-    "DEFAULT_LIMITS",
 ]

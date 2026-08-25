@@ -10,19 +10,20 @@ from __future__ import annotations
 import io
 import json
 import pathlib
+from typing import ClassVar
 
 import pytest
 
 pytest.importorskip("thumbor", reason="the meta endpoint needs Thumbor installed")
 
-from PIL import Image  # noqa: E402
-from thumbor.config import Config  # noqa: E402
-from thumbor.context import Context, ServerParameters  # noqa: E402
-from thumbor.importer import Importer  # noqa: E402
-from tornado.testing import AsyncHTTPTestCase  # noqa: E402
+from PIL import Image
+from thumbor.config import Config
+from thumbor.context import Context, ServerParameters
+from thumbor.importer import Importer
+from tornado.testing import AsyncHTTPTestCase
 
-import thumbor_ai_label.config  # noqa: E402,F401
-from thumbor_ai_label.app import AiLabelServiceApp  # noqa: E402
+import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from thumbor_ai_label.app import AiLabelServiceApp
 
 IMAGES = pathlib.Path(__file__).resolve().parent / "images"
 
@@ -34,7 +35,7 @@ PLAIN = "12-no-metadata.jpg"
 
 
 class MetaCase(AsyncHTTPTestCase):
-    extra_config: dict = {}
+    extra_config: ClassVar[dict] = {}
 
     def get_app(self):
         settings = {
@@ -54,7 +55,7 @@ class MetaCase(AsyncHTTPTestCase):
         return AiLabelServiceApp(Context(server=server, config=config, importer=importer))
 
     def meta(self, image, geometry="600x400"):
-        response = self.fetch("/unsafe/meta/{}/{}".format(geometry, image))
+        response = self.fetch(f"/unsafe/meta/{geometry}/{image}")
         assert response.code == 200, response.body[:200]
         return json.loads(response.body)
 
@@ -92,7 +93,7 @@ class TestPayload(MetaCase):
         assert "could not be established" in verdict["disclosure"]
 
     def test_image_requests_are_unaffected(self):
-        response = self.fetch("/unsafe/600x400/{}".format(AI))
+        response = self.fetch(f"/unsafe/600x400/{AI}")
         assert response.code == 200
         assert Image.open(io.BytesIO(response.body)).size == (600, 400)
         assert b"ai_label" not in response.body[:2048]
@@ -126,7 +127,7 @@ class TestVerbosity(MetaCase):
 
 
 class TestVerboseEnabled(MetaCase):
-    extra_config = {"AI_LABEL_META_VERBOSE": True}
+    extra_config: ClassVar[dict] = {"AI_LABEL_META_VERBOSE": True}
 
     def test_diagnostics_appear_when_asked_for(self):
         verdict = self.verdict(MIDJOURNEY)
@@ -137,7 +138,7 @@ class TestVerboseEnabled(MetaCase):
 
 
 class TestDisabled(MetaCase):
-    extra_config = {"AI_LABEL_META": False}
+    extra_config: ClassVar[dict] = {"AI_LABEL_META": False}
 
     def test_nothing_is_published(self):
         document = self.meta(AI)
@@ -146,7 +147,7 @@ class TestDisabled(MetaCase):
 
 
 class TestLocalisedDisclosures(MetaCase):
-    extra_config = {
+    extra_config: ClassVar[dict] = {
         "AI_LABEL_META_DISCLOSURES": {
             "ai_generated": "KI-generiert",
             "unknown": "Herkunft nicht feststellbar",
@@ -161,10 +162,10 @@ class TestLocalisedDisclosures(MetaCase):
 
 
 class TestJsonp(MetaCase):
-    extra_config = {"META_CALLBACK_NAME": "onMeta"}
+    extra_config: ClassVar[dict] = {"META_CALLBACK_NAME": "onMeta"}
 
     def test_the_verdict_survives_jsonp_wrapping(self):
-        response = self.fetch("/unsafe/meta/600x400/{}".format(AI))
+        response = self.fetch(f"/unsafe/meta/600x400/{AI}")
         assert response.code == 200
         body = response.body.decode("utf-8")
         assert body.startswith("onMeta(") and body.endswith(");")
@@ -174,7 +175,7 @@ class TestJsonp(MetaCase):
 
 
 class TestRelaxedPolicyReported(MetaCase):
-    extra_config = {"AI_LABEL_POLICY": "relaxed"}
+    extra_config: ClassVar[dict] = {"AI_LABEL_POLICY": "relaxed"}
 
     def test_the_active_policy_is_reported(self):
         assert self.verdict(AI)["policy"] == "relaxed"
@@ -231,8 +232,8 @@ class TestInjectionEdges:
 
     def test_an_unreportable_draw_check_does_not_break_the_payload(self, monkeypatch):
         from thumbor_ai_label import meta as meta_module
-        from thumbor_ai_label.policy import Decision, Reason
         from thumbor_ai_label.detect import SourceType
+        from thumbor_ai_label.policy import Decision, Reason
 
         context = self.context()
         monkeypatch.setattr(
@@ -270,8 +271,8 @@ class TestHandlerSafetyNet:
         return instance, asyncio
 
     def test_a_missing_verdict_is_computed(self, monkeypatch):
-        from thumbor_ai_label.state import get_decision, store_scan
         from thumbor_ai_label.scan import scan
+        from thumbor_ai_label.state import get_decision, store_scan
 
         context = self.context()
         store_scan(context, scan((IMAGES / AI).read_bytes()))

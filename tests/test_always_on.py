@@ -9,19 +9,20 @@ from __future__ import annotations
 import io
 import pathlib
 import tempfile
+from typing import ClassVar
 
 import pytest
 
 pytest.importorskip("thumbor", reason="the Thumbor layer needs Thumbor installed")
 
-from PIL import Image  # noqa: E402
-from thumbor.config import Config  # noqa: E402
-from thumbor.context import Context, ServerParameters  # noqa: E402
-from thumbor.importer import Importer  # noqa: E402
-from tornado.testing import AsyncHTTPTestCase  # noqa: E402
+from PIL import Image
+from thumbor.config import Config
+from thumbor.context import Context, ServerParameters
+from thumbor.importer import Importer
+from tornado.testing import AsyncHTTPTestCase
 
-import thumbor_ai_label.config  # noqa: E402,F401  (registers the config keys)
-from thumbor_ai_label.app import AiLabelServiceApp  # noqa: E402
+import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from thumbor_ai_label.app import AiLabelServiceApp
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
@@ -33,8 +34,8 @@ def source_image(term=None) -> bytes:
     if term:
         kwargs["xmp"] = (
             '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description '
-            '{ns} Iptc4xmpExt:DigitalSourceType="{cv}{term}"/></rdf:RDF></x:xmpmeta>'
-        ).format(ns=NS, cv=CV, term=term).encode()
+            f'{NS} Iptc4xmpExt:DigitalSourceType="{CV}{term}"/></rdf:RDF></x:xmpmeta>'
+        ).encode()
     buf = io.BytesIO()
     image.save(buf, "JPEG", quality=95, **kwargs)
     return buf.getvalue()
@@ -49,7 +50,7 @@ def bottom_right(raw: bytes, fraction: float = 0.4) -> bytes:
 class AlwaysOnCase(AsyncHTTPTestCase):
     """Base case serving three fixture images from a file loader."""
 
-    extra_config: dict = {}
+    extra_config: ClassVar[dict] = {}
 
     @classmethod
     def setUpClass(cls):
@@ -84,7 +85,7 @@ class AlwaysOnCase(AsyncHTTPTestCase):
 
     def get(self, path):
         response = self.fetch(path)
-        assert response.code == 200, "{} returned {}".format(path, response.code)
+        assert response.code == 200, f"{path} returned {response.code}"
         return response.body
 
 
@@ -133,7 +134,7 @@ class TestAlwaysOn(AlwaysOnCase):
 
 
 class TestDisabled(AlwaysOnCase):
-    extra_config = {"AI_LABEL_ENABLED": False}
+    extra_config: ClassVar[dict] = {"AI_LABEL_ENABLED": False}
 
     def test_nothing_is_drawn_when_the_plugin_is_off(self):
         ai = self.get("/unsafe/400x300/ai.jpg")
@@ -142,7 +143,7 @@ class TestDisabled(AlwaysOnCase):
 
 
 class TestRelaxedPolicy(AlwaysOnCase):
-    extra_config = {"AI_LABEL_POLICY": "relaxed"}
+    extra_config: ClassVar[dict] = {"AI_LABEL_POLICY": "relaxed"}
 
     def test_an_untagged_image_is_left_alone(self):
         plain = self.get("/unsafe/400x300/plain.jpg")
@@ -156,7 +157,7 @@ class TestRelaxedPolicy(AlwaysOnCase):
 
 
 class TestPositionConfig(AlwaysOnCase):
-    extra_config = {"AI_LABEL_POSITION": "top-left"}
+    extra_config: ClassVar[dict] = {"AI_LABEL_POSITION": "top-left"}
 
     def test_the_label_moves_with_config(self):
         ai = self.get("/unsafe/400x300/ai.jpg")
