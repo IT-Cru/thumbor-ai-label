@@ -95,6 +95,7 @@ Running an engine other than PIL? Compose your own:
 from thumbor_ai_label.engine import AiLabelEngineMixin
 from my.engine import Engine as Base
 
+
 class Engine(AiLabelEngineMixin, Base):
     pass
 ```
@@ -191,9 +192,9 @@ Three sets ship, each covering `ai_generated`, `ai_manipulated`, `ai_composite` 
 label at all.
 
 ```python
-AI_LABEL_ICON_SET = "eu"        # official EU labels, dark, for light imagery
+AI_LABEL_ICON_SET = "eu"  # official EU labels, dark, for light imagery
 AI_LABEL_ICON_SET = "eu-white"  # official EU labels, light, for dark imagery
-AI_LABEL_ICON_SET = "default"   # this plugin's own marks
+AI_LABEL_ICON_SET = "default"  # this plugin's own marks
 ```
 
 The `eu` sets are the European Commission's harmonised icons, published 10 June 2026 and

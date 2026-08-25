@@ -69,7 +69,15 @@ with `--cov-fail-under=100`. **All three are enforced, not aspirational.**
 
 Formatting is `ruff format` with the default style at a 100-column limit. Do not hand-
 tune layout — run the formatter and take what it gives you. That is the point of having
-one: layout stops being a thing anybody argues about in review. If a line cannot be reached by a test, that is usually a
+one: layout stops being a thing anybody argues about in review.
+
+Two things that catch people out:
+
+- **`ruff format` also formats Python code blocks inside Markdown.** Aligning inline
+  comments in a README example will fail CI, because the formatter normalises them to two
+  spaces. Documented examples are held to the same style as the code.
+- **`ruff check` and `ruff format --check` are separate gates.** Passing the first says
+  nothing about the second. Run both, or just run `ruff format` and let it fix things. If a line cannot be reached by a test, that is usually a
 sign the line should not exist — several defensive branches were deleted during
 development for exactly that reason.
 
