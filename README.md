@@ -314,7 +314,8 @@ already-cached images without invalidation.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions are Apache-2.0 by submission and
+See [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for reporting a
+vulnerability privately. Contributions are Apache-2.0 by submission and
 there is no CLA.
 
 The most useful contribution is not a patch: it is a **real image from a real AI tool**

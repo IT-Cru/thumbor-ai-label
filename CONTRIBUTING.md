@@ -147,6 +147,10 @@ against your own internal system belongs in your own package.
 
 ## Reporting a bug
 
+Found something with security implications — a crafted image that crashes the parser,
+hangs it, or exhausts memory? Report it privately instead: see [SECURITY.md](SECURITY.md).
+
+
 Attach the image if you can. A provenance bug is almost impossible to act on without the
 bytes that triggered it, and a description of the metadata is not a substitute — the
 `UserComment` bug above would have been invisible from any description of it.
