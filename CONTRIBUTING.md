@@ -102,10 +102,10 @@ re-run it:
 |---|---|
 | `src/thumbor_ai_label/icons/*.png` | `tools/make_icons.py` |
 | `src/thumbor_ai_label/icons/eu*/` | `tools/fetch_eu_icons.py` |
-| `tests/images/*` and its manifest | `tools/make_test_images.py` |
+| `tests/images/` — the numbered images and `manifest.json` | `tools/make_test_images.py` |
 
-`tests/images/real/` is the exception: contributed files, never generated, never
-rewritten. Editing one destroys the only reason it exists.
+**`tests/images/real/` is not generated** and is not covered by the row above: those are
+contributed files from real AI tools. Editing one destroys the only reason it exists.
 
 **`scan/` and `detect/` must not import Thumbor.** They are deliberately standalone so
 they can be tested and reused without Thumbor's dependency pins. Only `engine.py`,

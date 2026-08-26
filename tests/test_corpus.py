@@ -128,6 +128,19 @@ real_corpus_present = pytest.mark.skipif(
 
 @real_corpus_present
 class TestRealManifestIntegrity:
+    def test_the_directory_has_a_manifest(self):
+        """Asserted rather than implied.
+
+        A missing manifest makes REAL_MANIFEST an empty list, which every other check
+        here then satisfies vacuously so long as the directory holds no images. That is
+        a narrow window, but it is one where the corpus looks healthy while its contract
+        is broken.
+        """
+        assert REAL_MANIFEST_PATH.is_file(), (
+            f"{REAL_CORPUS} exists but has no manifest.json; "
+            "contributed images cannot be validated without one"
+        )
+
     def test_every_manifest_entry_exists_on_disk(self):
         missing = [e["file"] for e in REAL_MANIFEST if not (REAL_CORPUS / e["file"]).is_file()]
         assert not missing, f"manifest lists files that are not present: {missing}"
