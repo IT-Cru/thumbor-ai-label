@@ -23,8 +23,8 @@ class Policy(str, Enum):
     """What to do when nothing asserts how the image was made.
 
     STRICT labels anything without a positive not-AI assertion. That is the
-    strongest compliance posture and it will label most of a legacy archive, since
-    `DigitalSourceType` is a young field and older images simply do not carry it.
+    strongest compliance posture and it will label most older content, since
+    `DigitalSourceType` is a young field and images predating it do not carry one.
 
     RELAXED labels only when a provenance-capable block exists but says nothing
     conclusive - which is where a stripped or tampered assertion would show up -

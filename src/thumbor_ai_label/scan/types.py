@@ -85,8 +85,9 @@ class ScanResult:
     """What a scan found, plus how much it could trust the walk.
 
     The distinction that matters downstream is between *no metadata at all* and
-    *metadata that carried no AI assertion*. The first is the normal state of a
-    pre-2023 archive; the second is where a stripped or tampered assertion would
+    *metadata that carried no AI assertion*. The first is the normal state of anything
+    predating widespread provenance metadata; the second is where a stripped or tampered
+    assertion would
     show up. ``has_any_metadata`` is what the fail-closed policy keys off.
     """
 
