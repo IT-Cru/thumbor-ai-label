@@ -164,15 +164,18 @@ the plugin identified but which are too small to carry a visible mark, so the di
 your CMS writes is the only one a reader gets.
 
 ```bash
-curl -s "http://localhost:8888/unsafe/meta/120x80/$path" \
-  | jq -r '.ai_label | select(.label != null) | .labelled'
+while read -r path; do
+  curl -s "http://localhost:8888/unsafe/meta/120x80/$path" \
+    | jq -r '.ai_label | select(.label != null) | .labelled | tostring'
+done < paths.txt | sort | uniq -c
 ```
 
 If a second instance is impractical, setting `AI_LABEL_MIN_IMAGE_SIZE` above any image you
 serve gives byte-identical output to the plugin being off while detection still runs. Do
 not leave it in place: it reads like a fat-fingered threshold, and a compliance tool that
-looks enabled while marking nothing is worse than one that is plainly off. `AI_LABEL_OPACITY
-= 0` looks equivalent and is not — it reports `labelled: true` while drawing nothing.
+looks enabled while marking nothing is worse than one that is plainly off.
+`AI_LABEL_OPACITY = 0` looks equivalent and is not — it reports `labelled: true` while
+drawing nothing.
 
 ### Detectors
 
