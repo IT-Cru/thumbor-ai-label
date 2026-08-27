@@ -344,7 +344,7 @@ CASES: list[Case] = [
         build=lambda: encode(
             base_image(1, caption="12 expect: strict UNKNOWN / relaxed NO label"), "JPEG"
         ),
-        notes="The normal state of a pre-2023 archive.",
+        notes="The normal state of anything predating provenance metadata.",
     ),
     Case(
         file="13-exif-only-camera.jpg",

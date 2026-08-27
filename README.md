@@ -125,12 +125,57 @@ with a manifest of expected outcomes. Point a file loader at them and request a 
 
 The row that decides your deployment is **EXIF only**. EXIF defines no provenance field,
 so an EXIF block asserts nothing either way — and counting it as "metadata present" puts
-an `unknown` label on essentially every camera photograph ever taken. On a legacy archive
-`strict` will label most of your library.
+an `unknown` label on essentially every camera photograph ever taken. `DigitalSourceType`
+is a young field, so images predating it carry no provenance at all — under `strict` every
+one of them is labelled.
 
 **The `unknown` label has no basis in Article 50.** The law obliges you to disclose content
 you *know* is AI, not content whose provenance you cannot establish. `strict` is a
 defensive posture, not a legal requirement, and it may mislead readers in its own way.
+
+#### Measure before you choose
+
+Both policies are defensible; which suits you depends on what your source images
+actually carry. Point a second Thumbor at the same source storage and ask it. **Meta requests
+never draw a label**, so a measurement instance cannot alter an image even if production
+traffic reaches it by mistake.
+
+```bash
+while read -r path; do
+  curl -s "http://localhost:8888/unsafe/meta/600x400/$path" \
+    | jq -r '.ai_label | if .label == null then "no label" else .label end'
+done < paths.txt | sort | uniq -c | sort -rn
+```
+
+Run it under each `AI_LABEL_POLICY`. Against this project's own 24 fixtures:
+
+| Verdict | `strict` | `relaxed` |
+|---|---|---|
+| `ai_generated` | 12 | 12 |
+| `ai_manipulated` / `ai_composite` | 1 / 1 | 1 / 1 |
+| `unknown` | **6** | **3** |
+| no label | **4** | **7** |
+
+Three images move — the ones carrying only EXIF, or no metadata at all. Across real
+source images that gap is far wider, and it is the whole decision.
+
+Worth counting too: how often `labelled` is `false` while `label` is set. Those are images
+the plugin identified but which are too small to carry a visible mark, so the disclosure
+your CMS writes is the only one a reader gets.
+
+```bash
+while read -r path; do
+  curl -s "http://localhost:8888/unsafe/meta/120x80/$path" \
+    | jq -r '.ai_label | select(.label != null) | .labelled | tostring'
+done < paths.txt | sort | uniq -c
+```
+
+If a second instance is impractical, setting `AI_LABEL_MIN_IMAGE_SIZE` above any image you
+serve gives byte-identical output to the plugin being off while detection still runs. Do
+not leave it in place: it reads like a fat-fingered threshold, and a compliance tool that
+looks enabled while marking nothing is worse than one that is plainly off.
+`AI_LABEL_OPACITY = 0` looks equivalent and is not — it reports `labelled: true` while
+drawing nothing.
 
 ### Detectors
 

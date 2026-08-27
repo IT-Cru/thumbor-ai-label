@@ -165,7 +165,7 @@
       "strict": "unknown",
       "relaxed": null
     },
-    "notes": "The normal state of a pre-2023 archive."
+    "notes": "The normal state of anything predating provenance metadata."
   },
   {
     "file": "13-exif-only-camera.jpg",

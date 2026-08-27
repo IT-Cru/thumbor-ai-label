@@ -225,7 +225,7 @@ class TestWithoutTheEngineHook(AlwaysOnCase):
     """APP_CLASS set but ENGINE left alone - a likely misconfiguration.
 
     It must serve images normally and say what is wrong, not fail and not silently
-    look like a clean archive.
+    make every image look free of AI.
     """
 
     def get_app(self):
