@@ -8,6 +8,9 @@
 A Thumbor plugin that reads AI provenance metadata from the source image and draws a
 visible AI label on every generated image style.
 
+📖 **[Documentation](https://it-cru.github.io/thumbor-ai-label/)** — configuration guide,
+the Article 50 mapping, and how the internals work.
+
 ![Three images: one labelled AI GENERATED, one labelled AI MODIFIED, one untouched](https://raw.githubusercontent.com/IT-Cru/thumbor-ai-label/main/docs/example.png)
 
 > **Pre-1.0.** Everything below works and is covered by tests, but the configuration
@@ -311,6 +314,7 @@ out of EXIF `UserComment`, and this endpoint is publicly reachable.
 
 ### Reference
 
+<!-- --8<-- [start:config-reference] -->
 | Key | Default | Meaning |
 |---|---|---|
 | `AI_LABEL_ENABLED` | `True` | Master switch |
@@ -330,6 +334,7 @@ out of EXIF `UserComment`, and this endpoint is publicly reachable.
 | `AI_LABEL_META` | `True` | Publish the verdict on `/meta/` |
 | `AI_LABEL_META_VERBOSE` | `False` | Include detector, confidence, evidence, generator |
 | `AI_LABEL_META_DISCLOSURES` | `None` | Per-state disclosure strings; `None` uses English |
+<!-- --8<-- [end:config-reference] -->
 
 Sizes track the **shorter** edge, so a label carries the same visual weight on a panorama
 as on a square crop. Images below `AI_LABEL_MIN_IMAGE_SIZE` get no label: on a 64 px

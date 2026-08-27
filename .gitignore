@@ -10,3 +10,4 @@ build/
 *.zip
 contact-sheet-*.png
 .DS_Store
+site/

@@ -1,0 +1,62 @@
+site_name: thumbor-ai-label
+site_description: >-
+  Thumbor plugin that reads AI provenance metadata from the source image and draws a
+  visible AI label on every generated image style.
+site_url: https://it-cru.github.io/thumbor-ai-label/
+repo_url: https://github.com/IT-Cru/thumbor-ai-label
+repo_name: IT-Cru/thumbor-ai-label
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/weather-night, name: Switch to dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/weather-sunny, name: Switch to light mode }
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Configuration: configuration.md
+  - EU AI Act: eu-ai-act.md
+  - How it works: how-it-works.md
+  - Extending: extending.md
+  - Contributing: contributing.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.details
+  - pymdownx.superfences
+  # Without this, :material-check: and friends render as literal text rather than icons.
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight: { anchor_linenums: true }
+  # Lets the configuration page pull the reference table straight out of README.md,
+  # so the two cannot drift. The README has to stay self-contained for PyPI, which
+  # renders it from package metadata and resolves nothing relative.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/IT-Cru/thumbor-ai-label
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/thumbor-ai-label/
+
+strict: true

@@ -17,7 +17,11 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # mkdocs.yml is excluded: it carries !!python/name: tags for Material's emoji
+      # index, which this hook cannot resolve. `mkdocs build` in the docs workflow
+      # validates that file properly, which is a stronger check than parsing it.
       - id: check-yaml          # the CI workflow itself
+        exclude: ^mkdocs\.yml$
       - id: check-toml          # pyproject
       - id: check-merge-conflict
       - id: check-added-large-files
