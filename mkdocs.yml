@@ -40,6 +40,10 @@ markdown_extensions:
   - toc: { permalink: true }
   - pymdownx.details
   - pymdownx.superfences
+  # Without this, :material-check: and friends render as literal text rather than icons.
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight: { anchor_linenums: true }
   # Lets the configuration page pull the reference table straight out of README.md,
   # so the two cannot drift. The README has to stay self-contained for PyPI, which

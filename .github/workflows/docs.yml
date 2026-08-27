@@ -9,12 +9,14 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - "README.md" # the configuration reference is pulled from it by snippet
+      - "pyproject.toml" # the docs extra is installed by this job
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
       - "docs/**"
       - "mkdocs.yml"
       - "README.md"
+      - "pyproject.toml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
