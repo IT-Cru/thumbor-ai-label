@@ -42,9 +42,15 @@ dev = ["pytest>=8", "pytest-cov>=5", "packaging>=23", "ruff>=0.16", "pre-commit>
 docs = ["mkdocs-material>=9.5"]
 
 [project.urls]
-Homepage = "https://github.com/IT-Cru/thumbor-ai-label"
+# Homepage points at the docs rather than the repository: it is what someone arriving
+# from PyPI wants first, and Repository already covers the code. Documentation repeats
+# that URL on purpose - Homepage is the legacy field some tooling still reads, while
+# Documentation is what PyPI labels and gives a book icon to in the sidebar.
+Homepage = "https://it-cru.github.io/thumbor-ai-label/"
+Documentation = "https://it-cru.github.io/thumbor-ai-label/"
 Repository = "https://github.com/IT-Cru/thumbor-ai-label"
 Issues = "https://github.com/IT-Cru/thumbor-ai-label/issues"
+Changelog = "https://github.com/IT-Cru/thumbor-ai-label/releases"
 
 [tool.setuptools_scm]
 # The version is derived from git tags, so it is never hand-edited and can never
