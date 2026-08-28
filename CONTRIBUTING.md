@@ -25,7 +25,7 @@ zero, and it means Apache-2.0 is effectively permanent.
 
 ### Third-party assets
 
-The European Commission icons under `src/thumbor_ai_label/icons/eu/` and `eu-white/` are
+The European Commission icons under `ai-labels/eu/` and `ai-labels/eu-white/` are
 **not** covered by this project's licence and are not ours to relicense. See
 [THIRD-PARTY.md](THIRD-PARTY.md). Do not edit them; run `tools/fetch_eu_icons.py` if
 they need refreshing.
@@ -100,9 +100,14 @@ re-run it:
 
 | Files | Generator |
 |---|---|
-| `src/thumbor_ai_label/icons/*.png` | `tools/make_icons.py` |
-| `src/thumbor_ai_label/icons/eu*/` | `tools/fetch_eu_icons.py` |
+| `ai-labels/default/`, `ai-labels/default-light/` | `tools/make_icons.py` |
+| `ai-labels/eu/`, `ai-labels/eu-white/` | `tools/fetch_eu_icons.py` |
 | `tests/images/` — the numbered images and `manifest.json` | `tools/make_test_images.py` |
+
+`unknown.png` inside `ai-labels/eu/` and `ai-labels/eu-white/` is written by
+`fetch_eu_icons.py` but *drawn* by `make_icons.py`: the EU sets borrow this plugin's own
+neutral mark rather than an official one. Change the artwork with `make_icons.py`, then
+re-run `fetch_eu_icons.py` to copy it across.
 
 **`tests/images/real/` is not generated** and is not covered by the row above: those are
 contributed files from real AI tools. Editing one destroys the only reason it exists.

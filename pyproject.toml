@@ -64,11 +64,29 @@ local_scheme = "no-local-version"
 # rather than failing the build outright.
 fallback_version = "0.0.0.dev0"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+# Listed explicitly rather than discovered, because the icon artwork is not under
+# src/ and so cannot be found by scanning it. See package-dir below.
+packages = [
+    "thumbor_ai_label",
+    "thumbor_ai_label.detect",
+    "thumbor_ai_label.filters",
+    "thumbor_ai_label.scan",
+    "thumbor_ai_label.labelsets",
+]
+
+[tool.setuptools.package-dir]
+thumbor_ai_label = "src/thumbor_ai_label"
+# The label artwork lives at the repository root, where it is easy to find, review
+# and fork - it is design source, not code. Wheels need it beside the code that
+# loads it, so it is mapped in as a data-only subpackage. It carries no
+# __init__.py and is never imported; thumbor_ai_label.icons resolves it by path.
+#
+# The names differ because src/thumbor_ai_label/icons.py already claims "icons".
+"thumbor_ai_label.labelsets" = "ai-labels"
 
 [tool.setuptools.package-data]
-thumbor_ai_label = ["icons/*.png", "icons/*/*.png"]
+"thumbor_ai_label.labelsets" = ["*/*.png", "*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

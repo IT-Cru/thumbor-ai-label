@@ -127,15 +127,22 @@ label it — the opposite of what raising the bar was for.
 
 ## Icon variants
 
-Three sets ship, each covering `ai_generated`, `ai_manipulated`, `ai_composite` and
+Four sets ship, each covering `ai_generated`, `ai_manipulated`, `ai_composite` and
 `unknown`. `NOT_AI` has no icon by design: a positively identified photograph gets no label
 at all.
 
 ```python
-AI_LABEL_ICON_SET = "eu"        # official EU labels, dark, for light imagery
-AI_LABEL_ICON_SET = "eu-white"  # official EU labels, light, for dark imagery
-AI_LABEL_ICON_SET = "default"   # this plugin's own marks
+AI_LABEL_ICON_SET = "default"        # this plugin's own marks, dark, for light imagery
+AI_LABEL_ICON_SET = "default-light"  # the same marks, light, for dark imagery
+AI_LABEL_ICON_SET = "eu"             # official EU labels, dark, for light imagery
+AI_LABEL_ICON_SET = "eu-white"       # official EU labels, light, for dark imagery
 ```
+
+Every set comes in a variant for light imagery and one for dark, so the choice is which
+family of marks you want, then which way round it reads against your pictures.
+
+The artwork is in `ai-labels/` at the repository root, one directory per set. To build a
+house style, copy a directory, edit the four PNGs, and point `AI_LABEL_ICONS` at them.
 
 The `eu` sets are the European Commission's harmonised icons, published 10 June 2026 and
 free to use without attribution. **Their use is optional; the disclosure obligation is
