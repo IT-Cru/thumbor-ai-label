@@ -83,14 +83,26 @@ class TestIconSet:
         with pytest.raises(IconError, match="could not read"):
             IconSet(overrides={"ai_generated": str(path)})
 
-    def test_an_empty_override_is_rejected_rather_than_falling_back(self):
-        """It used to load the bundled icon, so "" looked like it meant something."""
-        with pytest.raises(IconError, match="empty icon override"):
+    @pytest.mark.parametrize("value", ["", "   ", None, False, 0])
+    def test_a_valueless_override_is_rejected_rather_than_falling_back(self, value):
+        """Every one of these used to load the bundled icon and say nothing.
+
+        `False` is the interesting one: it reads as an off switch, which is exactly
+        the thing an operator would try before finding AI_LABEL_DRAW_STATES.
+        """
+        with pytest.raises(IconError, match="unusable icon override"):
+            IconSet(overrides={"unknown": value})
+
+    def test_the_rejection_points_at_the_key_that_does_suppress_a_state(self):
+        with pytest.raises(IconError, match="AI_LABEL_DRAW_STATES"):
             IconSet(overrides={"unknown": ""})
 
-    def test_a_none_override_is_rejected_too(self):
-        with pytest.raises(IconError, match="AI_LABEL_DRAW_STATES"):
-            IconSet(overrides={"unknown": None})
+    def test_a_padded_path_is_used_rather_than_reported_missing(self, tmp_path):
+        """Whitespace is invisible in a config file and in the error it would cause."""
+        path = tmp_path / "custom.png"
+        Image.new("RGBA", (64, 64), (255, 0, 0, 255)).save(path)
+        icons = IconSet(overrides={"unknown": f"  {path}  "})
+        assert icons.get(SourceType.UNKNOWN, 64).getpixel((32, 32)) == (255, 0, 0, 255)
 
     def test_an_unknown_state_in_overrides_is_rejected(self):
         with pytest.raises(IconError, match="unknown label states"):

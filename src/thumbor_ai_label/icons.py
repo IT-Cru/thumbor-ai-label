@@ -133,24 +133,31 @@ class IconSet:
                 )
             )
 
-        # An empty or None value used to fall through to the bundled icon, so an
-        # operator writing {"unknown": ""} to mean "nothing here" silently got the
-        # default mark. A map of paths holds paths; suppression lives elsewhere.
-        blank_keys = [
-            key for key, path in overrides.items() if path is None or not str(path).strip()
-        ]
-        if blank_keys:
+        # Any falsy value used to fall through to the bundled icon, so an operator
+        # writing {"unknown": ""} - or False, which reads as an off switch - silently
+        # got the default mark. A map of paths holds paths; suppression lives in
+        # AI_LABEL_DRAW_STATES.
+        unusable = {
+            key: value
+            for key, value in overrides.items()
+            if not isinstance(value, str | pathlib.Path) or not str(value).strip()
+        }
+        if unusable:
             raise IconError(
-                "empty icon override for {}; a path is required. To leave a state "
+                "unusable icon override for {}; a path is required. To leave a state "
                 "unmarked, drop it from AI_LABEL_DRAW_STATES instead.".format(
-                    ", ".join(repr(key) for key in sorted(blank_keys))
+                    ", ".join(f"{key!r} = {value!r}" for key, value in sorted(unusable.items()))
                 )
             )
 
+        # Every remaining value is an explicit path, so nothing downstream needs a
+        # truthiness test that could reintroduce the fallback. Stripping here keeps a
+        # padded path from failing as a puzzling "not found" on an invisible space.
+        paths = {key: pathlib.Path(str(value).strip()) for key, value in overrides.items()}
+
         self._icons: dict[SourceType, Image.Image] = {}
         for state in LABEL_STATES:
-            path = overrides.get(state.value)
-            self._icons[state] = self._load(state, pathlib.Path(path) if path else None)
+            self._icons[state] = self._load(state, paths.get(state.value))
 
         self._scaled = lru_cache(maxsize=RESIZE_CACHE_SIZE)(self._scale)
 

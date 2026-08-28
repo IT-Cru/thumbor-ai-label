@@ -278,8 +278,9 @@ AI_LABEL_ICONS = {"ai_generated": "/etc/thumbor/icons/house-style.png"}
 ```
 
 Overrides are validated and decoded once at startup, so a missing or corrupt path fails
-loudly rather than becoming a broken image mid-request. An empty value is rejected as well
-— to leave a state unmarked, use `AI_LABEL_DRAW_STATES` below.
+loudly rather than becoming a broken image mid-request. A value that is not a path — `""`,
+`None`, `False` — is rejected too; to leave a state unmarked, use `AI_LABEL_DRAW_STATES`
+below.
 
 > The Commission notes that use of these icons by non-signatories of the Code of Practice
 > "should not be construed as signaling of their adherence to the code", and that
@@ -317,9 +318,9 @@ An empty list — `AI_LABEL_DRAW_STATES = []` — is a valid "meta only" mode: d
 verdicts are published, no pixels are touched. Use `AI_LABEL_ENABLED = False` if you want
 detection off as well.
 
-Two things this key is **not** for. Setting an icon override to `""` or `None` does not
-suppress a state; it is rejected at startup, because a map of paths holds paths. And
-`not_ai` is not a valid entry — a positively identified photograph never had a mark to
+Two things this key is **not** for. Setting an icon override to `""`, `None` or `False`
+does not suppress a state; it is rejected at startup, because a map of paths holds paths.
+And `not_ai` is not a valid entry — a positively identified photograph never had a mark to
 suppress.
 
 Because the value is a list of plain strings, it also survives being passed through the
