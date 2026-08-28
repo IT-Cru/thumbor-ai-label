@@ -278,11 +278,54 @@ AI_LABEL_ICONS = {"ai_generated": "/etc/thumbor/icons/house-style.png"}
 ```
 
 Overrides are validated and decoded once at startup, so a missing or corrupt path fails
-loudly rather than becoming a broken image mid-request.
+loudly rather than becoming a broken image mid-request. A value that is not a path — `""`,
+`None`, `False` — is rejected too; to leave a state unmarked, use `AI_LABEL_DRAW_STATES`
+below.
 
 > The Commission notes that use of these icons by non-signatories of the Code of Practice
 > "should not be construed as signaling of their adherence to the code", and that
 > signatories must follow its placement specifications.
+
+### Which states get a mark
+
+By default all four states draw. `AI_LABEL_DRAW_STATES` narrows that to the states you
+want burnt into the pixels:
+
+```python
+AI_LABEL_DRAW_STATES = ["ai_generated", "ai_manipulated", "ai_composite"]
+```
+
+That is the common case: mark what a detector positively identified as AI, and leave
+`unknown` — provenance that could not be established — unmarked. `unknown` is this
+plugin's fail-closed hedge, not an AI claim, and a publisher may reasonably decide it does
+not warrant a mark on the image itself.
+
+**A state left out is still detected and still published.** Only the drawing stops. The
+`/meta/` payload carries the verdict as before with `"labelled": false`, exactly as it does
+for an image below `AI_LABEL_MIN_IMAGE_SIZE`:
+
+```json
+{"label": "unknown", "reason": "inconclusive", "labelled": false,
+ "disclosure": "Image provenance could not be established"}
+```
+
+**For a suppressed state, the DOM disclosure becomes the only one.** The label a CMS
+writes from `/meta/` is the *entire* disclosure the image carries. Narrowing this key is a
+decision about your obligations under Article 50(4), so it is announced in the log at
+startup.
+
+An empty list — `AI_LABEL_DRAW_STATES = []` — is a valid "meta only" mode: detection runs,
+verdicts are published, no pixels are touched. Use `AI_LABEL_ENABLED = False` if you want
+detection off as well.
+
+Two things this key is **not** for. Setting an icon override to `""`, `None` or `False`
+does not suppress a state; it is rejected at startup, because a map of paths holds paths.
+And `not_ai` is not a valid entry — a positively identified photograph never had a mark to
+suppress.
+
+Because the value is a list of plain strings, it also survives being passed through the
+environment: `AI_LABEL_DRAW_STATES=ai_generated,ai_manipulated` is read as a
+comma-separated list, which `AI_LABEL_ICONS` cannot be.
 
 ### The meta endpoint
 
@@ -331,6 +374,7 @@ out of EXIF `UserComment`, and this endpoint is publicly reachable.
 | `AI_LABEL_MIN_CONFIDENCE` | `"low"` | Lowest confidence that may raise an AI label |
 | `AI_LABEL_ICON_SET` | `"default"` | `default`, `default-light`, `eu`, or `eu-white` |
 | `AI_LABEL_ICONS` | `{}` | Per-state icon path overrides; win over the set |
+| `AI_LABEL_DRAW_STATES` | `None` | States that get a visible mark; `None` draws all four |
 | `AI_LABEL_OPACITY` | `100` | Label opacity, 0–100 |
 | `AI_LABEL_POSITION` | `"bottom-right"` | Corner, or `center` |
 | `AI_LABEL_SIZE_RATIO` | `0.14` | Label **height** as a fraction of the shorter edge |

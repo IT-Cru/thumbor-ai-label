@@ -58,6 +58,32 @@ class TestBootValidation:
         AiLabelServiceApp._validate(FakeContext(AI_LABEL_DETECTORS=[]))
         assert any("no detectors configured" in r.getMessage() for r in caplog.records)
 
+    def test_a_narrowed_draw_state_list_is_announced(self, caplog):
+        """Dropping a state weakens the disclosure, so the operator gets told."""
+        AiLabelServiceApp._validate(
+            FakeContext(AI_LABEL_DRAW_STATES=["ai_generated", "ai_manipulated", "ai_composite"])
+        )
+        message = next(
+            r.getMessage() for r in caplog.records if "AI_LABEL_DRAW_STATES" in r.getMessage()
+        )
+        assert "unknown" in message
+
+    def test_an_empty_draw_state_list_is_announced(self, caplog):
+        AiLabelServiceApp._validate(FakeContext(AI_LABEL_DRAW_STATES=[]))
+        assert any("AI_LABEL_DRAW_STATES is empty" in r.getMessage() for r in caplog.records)
+
+    def test_the_full_default_says_nothing(self, caplog):
+        AiLabelServiceApp._validate(FakeContext())
+        assert not [
+            r
+            for r in caplog.records
+            if "AI_LABEL_DRAW_STATES" in r.getMessage() and r.levelname == "WARNING"
+        ]
+
+    def test_a_bad_draw_state_name_is_caught_at_boot(self, caplog):
+        AiLabelServiceApp._validate(FakeContext(AI_LABEL_DRAW_STATES=["nope"]))
+        assert any(r.levelname == "ERROR" for r in caplog.records)
+
 
 class TestFactoryWrapper:
     def context(self):

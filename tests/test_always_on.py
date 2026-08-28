@@ -156,6 +156,25 @@ class TestRelaxedPolicy(AlwaysOnCase):
         assert bottom_right(ai) != bottom_right(camera)
 
 
+class TestDrawStates(AlwaysOnCase):
+    """Only positively detected AI gets a mark; uncertain provenance goes unmarked."""
+
+    extra_config: ClassVar[dict] = {
+        "AI_LABEL_DRAW_STATES": ["ai_generated", "ai_manipulated", "ai_composite"]
+    }
+
+    def test_an_untagged_image_is_left_alone_even_under_strict(self):
+        """Strict still calls it unknown - it just no longer draws it."""
+        plain = self.get("/unsafe/400x300/plain.jpg")
+        camera = self.get("/unsafe/400x300/camera.jpg")
+        assert bottom_right(plain) == bottom_right(camera)
+
+    def test_an_ai_image_is_still_labelled(self):
+        ai = self.get("/unsafe/400x300/ai.jpg")
+        camera = self.get("/unsafe/400x300/camera.jpg")
+        assert bottom_right(ai) != bottom_right(camera)
+
+
 class TestPositionConfig(AlwaysOnCase):
     extra_config: ClassVar[dict] = {"AI_LABEL_POSITION": "top-left"}
 

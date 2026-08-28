@@ -60,6 +60,13 @@ def draw(context, engine, decision: Decision) -> bool:
     if not decision.should_label:
         return False
 
+    settings = get_settings(context.config)
+
+    if not settings.draws(decision.state):
+        # Configured out of the visible marking. The verdict still stands and still
+        # reaches /meta/, where it reports labelled: false.
+        return False
+
     if already_drawn(engine):
         return False
 
@@ -73,7 +80,6 @@ def draw(context, engine, decision: Decision) -> bool:
         logger.warning("[AiLabel] engine %r exposes no PIL image; skipping", type(engine).__name__)
         return False
 
-    settings = get_settings(context.config)
     labelled, drawn = apply_label(
         image,
         lambda height: settings.icons.get(decision.state, height),
