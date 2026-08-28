@@ -76,7 +76,9 @@ and CI cannot disagree.
 ```
 
 CI runs that, plus the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`.
-**Both are enforced, not aspirational.**
+**Both are enforced, not aspirational.** If a line cannot be reached by a test, that is
+usually a sign the line should not exist — several defensive code paths were deleted
+during development for exactly that reason.
 
 Formatting is `ruff format` with the default style at a 100-column limit. Do not hand-
 tune layout — run the formatter and take what it gives you. That is the point of having
@@ -92,9 +94,7 @@ Two things that catch people out:
   so prefer `ruff format src tests tools`.
 - **`ruff check` and `ruff format --check` are separate gates.** Passing the first says
   nothing about the second. Running pre-commit covers both, which is the reason to
-  install it. If a line cannot be reached by a test, that is usually a
-sign the line should not exist — several defensive branches were deleted during
-development for exactly that reason.
+  install it.
 
 ## Branch naming
 
