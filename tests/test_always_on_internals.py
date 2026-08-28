@@ -58,6 +58,12 @@ class TestBootValidation:
         AiLabelServiceApp._validate(FakeContext(AI_LABEL_DETECTORS=[]))
         assert any("no detectors configured" in r.getMessage() for r in caplog.records)
 
+    def test_the_icon_set_in_use_is_named(self, caplog):
+        """With AI_LABEL_ICON_DIR set, 'default' is not one fixed set of artwork."""
+        caplog.set_level("INFO")
+        AiLabelServiceApp._validate(FakeContext(AI_LABEL_ICON_SET="eu"))
+        assert any("icon_set=eu" in r.getMessage() for r in caplog.records)
+
     def test_a_narrowed_draw_state_list_is_announced(self, caplog):
         """Dropping a state weakens the disclosure, so the operator gets told."""
         AiLabelServiceApp._validate(

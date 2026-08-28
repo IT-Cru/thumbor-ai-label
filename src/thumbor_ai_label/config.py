@@ -5,13 +5,14 @@ Importing this module registers the keys with Thumbor's config system.
 
 from __future__ import annotations
 
+import pathlib
 from dataclasses import dataclass
 
 from thumbor.config import Config
 
 from .compose import Layout, Position
 from .detect import Confidence, Detector, SourceType, load_detectors
-from .icons import BUNDLED_SETS, LABEL_STATES, IconSet
+from .icons import BUNDLED_SETS, DEFAULT_SET, LABEL_STATES, IconSet
 from .policy import Policy
 
 GROUP = "AI Label"
@@ -38,12 +39,22 @@ Config.define(
     GROUP,
 )
 Config.define(
+    "AI_LABEL_ICON_DIR",
+    None,
+    "Directory holding icon sets, one subdirectory per set, for a house style that "
+    "ships as a mounted volume rather than as edits inside the installed package. "
+    "None uses the bundled artwork. While this is set the bundled set names do not "
+    "resolve: a set is looked up here and nowhere else.",
+    GROUP,
+)
+Config.define(
     "AI_LABEL_ICON_SET",
     "default",
-    "Which bundled icon set to draw: " + ", ".join(BUNDLED_SETS) + ". "
+    "Which icon set to draw. Bundled: " + ", ".join(BUNDLED_SETS) + ". "
     "'default' and 'default-light' are this plugin's own marks; "
     "'eu' and 'eu-white' are the European Commission's harmonised AI labels. "
-    "The plain names suit light imagery and the light/white ones dark imagery.",
+    "The plain names suit light imagery and the light/white ones dark imagery. "
+    "With AI_LABEL_ICON_DIR set, this names a subdirectory of that instead.",
     GROUP,
 )
 Config.define(
@@ -114,6 +125,38 @@ Config.define(
 )
 
 
+def parse_icon_dir(value) -> pathlib.Path | None:
+    """Resolve ``AI_LABEL_ICON_DIR`` into a base directory, or ``None`` for bundled.
+
+    Both this and ``AI_LABEL_ICON_SET`` are plain strings, which is the point of the
+    key: unlike the dict-valued ``AI_LABEL_ICONS``, a whole house set can be named
+    from a container's environment. So the empty string an unrendered template
+    variable leaves behind has to read as "not configured" rather than as a set
+    directory called ``""``, which would resolve relative to the working directory.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    return pathlib.Path(text) if text else None
+
+
+def parse_icon_set(value) -> str:
+    """Resolve ``AI_LABEL_ICON_SET`` into a set name.
+
+    Same reading of an empty value as ``AI_LABEL_ICON_DIR`` and
+    ``AI_LABEL_DRAW_STATES``: an unrendered template variable means "not
+    configured", not a set whose name is the empty string.
+
+    Reading it as the default is safe in the case that matters. With a house
+    directory configured and the name left empty, ``default`` is looked up there,
+    is not found, and fails at boot - it does not quietly fall back to the bundled
+    marks. Only when neither key is set does this end at the bundled default, which
+    is what an unconfigured plugin draws anyway.
+    """
+    text = str(value).strip() if value is not None else ""
+    return text or DEFAULT_SET
+
+
 def parse_draw_states(value) -> frozenset[SourceType]:
     """Resolve ``AI_LABEL_DRAW_STATES`` into the states that get a visible mark.
 
@@ -177,7 +220,8 @@ class Settings:
             icons=IconSet(
                 overrides=config.AI_LABEL_ICONS or {},
                 opacity=int(config.AI_LABEL_OPACITY),
-                icon_set=str(config.AI_LABEL_ICON_SET),
+                icon_dir=parse_icon_dir(config.AI_LABEL_ICON_DIR),
+                icon_set=parse_icon_set(config.AI_LABEL_ICON_SET),
             ),
             layout=Layout(
                 size_ratio=float(config.AI_LABEL_SIZE_RATIO),

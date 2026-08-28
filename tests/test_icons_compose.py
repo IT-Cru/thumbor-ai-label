@@ -18,6 +18,7 @@ from thumbor_ai_label.compose import (
 from thumbor_ai_label.detect import SourceType
 from thumbor_ai_label.icons import (
     BUNDLED_SETS,
+    DEFAULT_SET,
     LABEL_STATES,
     IconError,
     IconSet,
@@ -119,6 +120,51 @@ class TestIconSet:
         """Uniform layout is what makes a directory of house sets drop straight in."""
         for name in BUNDLED_SETS:
             assert set_directory(name, tmp_path) == tmp_path / name
+
+    def test_a_house_set_resolves_exactly_like_a_bundled_one(self, tmp_path):
+        house = tmp_path / "house-style"
+        house.mkdir()
+        for state in LABEL_STATES:
+            Image.new("RGBA", (64, 64), (255, 0, 0, 255)).save(house / f"{state.value}.png")
+
+        icons = IconSet(icon_dir=tmp_path, icon_set="house-style")
+
+        assert icons.name == "house-style"
+        for state in LABEL_STATES:
+            assert icons.get(state, 64).getpixel((32, 32)) == (255, 0, 0, 255)
+
+    def test_a_bundled_name_does_not_resolve_against_a_configured_dir(self, tmp_path):
+        """No fallback: a typo'd house name must not quietly ship the default marks."""
+        with pytest.raises(IconError, match="do not resolve"):
+            IconSet(icon_dir=tmp_path, icon_set=DEFAULT_SET)
+
+    def test_the_error_names_the_directory_that_was_searched(self, tmp_path):
+        with pytest.raises(IconError) as caught:
+            IconSet(icon_dir=tmp_path, icon_set="house-style")
+        message = str(caught.value)
+        assert str(tmp_path) in message
+        assert "AI_LABEL_ICON_DIR" in message
+
+    def test_the_bundled_error_points_at_the_key_that_would_have_helped(self):
+        with pytest.raises(IconError, match="AI_LABEL_ICON_DIR"):
+            IconSet(icon_set="house-style")
+
+    @pytest.mark.parametrize("name", ["", "   "])
+    def test_an_empty_set_name_is_rejected_rather_than_read_as_the_base(self, name):
+        """`base / ""` is `base`, which exists - so this would fail as a missing file."""
+        with pytest.raises(IconError, match="icon set name is empty"):
+            IconSet(icon_set=name)
+
+    def test_a_padded_set_name_resolves(self, tmp_path):
+        """Whitespace is invisible in a config file and in the path it would name."""
+        house = tmp_path / "house-style"
+        house.mkdir()
+        for state in LABEL_STATES:
+            Image.new("RGBA", (64, 64), (255, 0, 0, 255)).save(house / f"{state.value}.png")
+
+        icons = IconSet(icon_dir=tmp_path, icon_set="  house-style  ")
+
+        assert icons.name == "house-style"
 
     def test_non_positive_height_is_rejected(self):
         with pytest.raises(IconError):
