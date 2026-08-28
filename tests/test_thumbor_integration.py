@@ -20,7 +20,12 @@ from thumbor.config import Config
 from thumbor.context import Context
 from thumbor.importer import Importer
 
-from thumbor_ai_label.config import get_settings, parse_draw_states, parse_icon_dir
+from thumbor_ai_label.config import (
+    get_settings,
+    parse_draw_states,
+    parse_icon_dir,
+    parse_icon_set,
+)
 from thumbor_ai_label.detect import SourceType
 from thumbor_ai_label.filters.ai_label import Filter
 from thumbor_ai_label.icons import LABEL_STATES, IconError
@@ -389,6 +394,27 @@ class TestIconDir:
         assert parse_icon_dir("  /etc/thumbor/icon-sets  ") == pathlib.Path(
             "/etc/thumbor/icon-sets"
         )
+
+    def test_the_set_name_reads_an_empty_value_the_same_way(self):
+        """Both keys render from the same template; both must survive it unrendered."""
+        assert parse_icon_set(None) == "default"
+        assert parse_icon_set("") == "default"
+        assert parse_icon_set("   ") == "default"
+
+    def test_a_padded_set_name_is_stripped(self):
+        assert parse_icon_set("  eu-white  ") == "eu-white"
+
+    def test_an_empty_set_name_beside_a_house_directory_still_fails(self, tmp_path):
+        """The case that must not fall back: house dir configured, name unrendered."""
+        self.house_set(tmp_path)
+        with pytest.raises(IconError, match="do not resolve"):
+            get_settings(
+                build_context(
+                    AI_LABEL_ICON_DIR=str(tmp_path),
+                    AI_LABEL_ICON_SET="",
+                    AI_LABEL_STRICT_ERRORS=True,
+                ).config
+            )
 
 
 class TestFilterWiring:

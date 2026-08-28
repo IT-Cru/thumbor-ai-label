@@ -117,6 +117,17 @@ class IconSet:
         if not 0 <= opacity <= 100:
             raise IconError(f"opacity must be between 0 and 100, got {opacity}")
 
+        # A set is a subdirectory, and pathlib reads ``base / ""`` as ``base`` - which
+        # exists, so the is_dir() check below would pass and an empty name would
+        # surface as a missing icon file, blaming the artwork for an unset variable.
+        icon_set = str(icon_set).strip()
+        if not icon_set:
+            raise IconError(
+                "icon set name is empty; a set is a subdirectory, so an empty name "
+                "resolves to the directory holding the sets rather than to a set. "
+                "Bundled sets are {}.".format(", ".join(BUNDLED_SETS))
+            )
+
         self.opacity = opacity
         self.name = icon_set
         # Normalised once, so the lookup below and the error it may raise cannot

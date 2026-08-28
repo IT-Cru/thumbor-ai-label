@@ -12,7 +12,7 @@ from thumbor.config import Config
 
 from .compose import Layout, Position
 from .detect import Confidence, Detector, SourceType, load_detectors
-from .icons import BUNDLED_SETS, LABEL_STATES, IconSet
+from .icons import BUNDLED_SETS, DEFAULT_SET, LABEL_STATES, IconSet
 from .policy import Policy
 
 GROUP = "AI Label"
@@ -140,6 +140,23 @@ def parse_icon_dir(value) -> pathlib.Path | None:
     return pathlib.Path(text) if text else None
 
 
+def parse_icon_set(value) -> str:
+    """Resolve ``AI_LABEL_ICON_SET`` into a set name.
+
+    Same reading of an empty value as ``AI_LABEL_ICON_DIR`` and
+    ``AI_LABEL_DRAW_STATES``: an unrendered template variable means "not
+    configured", not a set whose name is the empty string.
+
+    Reading it as the default is safe in the case that matters. With a house
+    directory configured and the name left empty, ``default`` is looked up there,
+    is not found, and fails at boot - it does not quietly fall back to the bundled
+    marks. Only when neither key is set does this end at the bundled default, which
+    is what an unconfigured plugin draws anyway.
+    """
+    text = str(value).strip() if value is not None else ""
+    return text or DEFAULT_SET
+
+
 def parse_draw_states(value) -> frozenset[SourceType]:
     """Resolve ``AI_LABEL_DRAW_STATES`` into the states that get a visible mark.
 
@@ -204,7 +221,7 @@ class Settings:
                 overrides=config.AI_LABEL_ICONS or {},
                 opacity=int(config.AI_LABEL_OPACITY),
                 icon_dir=parse_icon_dir(config.AI_LABEL_ICON_DIR),
-                icon_set=str(config.AI_LABEL_ICON_SET),
+                icon_set=parse_icon_set(config.AI_LABEL_ICON_SET),
             ),
             layout=Layout(
                 size_ratio=float(config.AI_LABEL_SIZE_RATIO),

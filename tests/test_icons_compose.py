@@ -149,6 +149,23 @@ class TestIconSet:
         with pytest.raises(IconError, match="AI_LABEL_ICON_DIR"):
             IconSet(icon_set="house-style")
 
+    @pytest.mark.parametrize("name", ["", "   "])
+    def test_an_empty_set_name_is_rejected_rather_than_read_as_the_base(self, name):
+        """`base / ""` is `base`, which exists - so this would fail as a missing file."""
+        with pytest.raises(IconError, match="icon set name is empty"):
+            IconSet(icon_set=name)
+
+    def test_a_padded_set_name_resolves(self, tmp_path):
+        """Whitespace is invisible in a config file and in the path it would name."""
+        house = tmp_path / "house-style"
+        house.mkdir()
+        for state in LABEL_STATES:
+            Image.new("RGBA", (64, 64), (255, 0, 0, 255)).save(house / f"{state.value}.png")
+
+        icons = IconSet(icon_dir=tmp_path, icon_set="  house-style  ")
+
+        assert icons.name == "house-style"
+
     def test_non_positive_height_is_rejected(self):
         with pytest.raises(IconError):
             IconSet().get(SourceType.AI_GENERATED, 0)
