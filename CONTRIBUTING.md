@@ -84,14 +84,53 @@ one: layout stops being a thing anybody argues about in review.
 
 Two things that catch people out:
 
-- **`ruff format` also formats Python code blocks inside Markdown.** Aligning inline
-  comments in a README example will fail CI, because the formatter normalises them to two
-  spaces. Documented examples are held to the same style as the code.
+- **`ruff format .` rewrites Python code blocks inside Markdown, but CI does not check
+  them.** The `ruff-format` hook declares `types_or: [python, pyi, jupyter]`, so Markdown
+  never reaches it and a documented example's layout cannot fail CI. Matching the
+  formatter's style in examples is still the house convention — just know that running
+  the formatter across the whole tree silently rewrites prose files nothing is gating,
+  so prefer `ruff format src tests tools`.
 - **`ruff check` and `ruff format --check` are separate gates.** Passing the first says
   nothing about the second. Running pre-commit covers both, which is the reason to
   install it. If a line cannot be reached by a test, that is usually a
 sign the line should not exist — several defensive branches were deleted during
 development for exactly that reason.
+
+## Branch naming
+
+Branches follow [Conventional Branch](https://conventionalbranch.org/) v1.1.0:
+`<type>/<description>`.
+
+| Prefix | For |
+|---|---|
+| `feature/` or `feat/` | new features |
+| `bugfix/` or `fix/` | bug fixes |
+| `hotfix/` | urgent fixes |
+| `release/` | preparing a release |
+| `chore/` | non-code tasks — dependencies, docs, tooling |
+
+Lowercase `a-z`, digits and hyphens only — no underscores, spaces or other punctuation,
+and no leading, trailing or consecutive hyphens. Dots are allowed only in a `release/`
+description, for the version number. Trunk branches (`main`) carry no prefix.
+
+Include the issue number where there is one:
+
+```text
+feature/issue-9-icon-sets
+fix/issue-42-webp-truncation
+chore/issue-1-mkdocs-site
+```
+
+Choose the prefix from what the change does to the *shipped plugin*, not from the size of
+the diff. Moving files around is `chore/`. Moving files around **and** adding a config
+value people can set is `feature/`, because the second half is the part they notice.
+
+**Do not use the AI agent source prefixes.** v1.1.0 adds `ai/`, `claude/`, `codex/`,
+`copilot/` and `cursor/` for branches an agent produced. This project does not use them.
+A branch name should say what the work *is*, so it still means something in a branch
+listing months later; which tool typed it is neither durable nor relevant to reviewing
+the diff. Authorship belongs in commit trailers, where `Co-Authored-By` already records
+it.
 
 ## Things that are easy to get wrong here
 
