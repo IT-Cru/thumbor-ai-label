@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import itertools
+
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 
 from thumbor_ai_label.compose import (
     Layout,
@@ -228,6 +230,18 @@ def test_a_margin_that_swallows_the_frame_yields_no_label():
     assert label_height((10, 10), layout) is None
 
 
+#: The smallest label the plugin will draw, per AI_LABEL_MIN_SIZE's default.
+MIN_LABEL_SIZE = 20
+
+#: Mean absolute greyscale difference below which two states have collapsed into each
+#: other. This is a collapse detector, not a measurement of ring geometry: the >=90 deg
+#: gap constraint is enforced exactly by MIN_RING_GAP and check_gaps() in
+#: tools/make_icons.py, which is the only place it can be checked as an angle rather
+#: than inferred from pixels. The measured worst pair is ~15, so this leaves roughly 2x
+#: headroom for deliberate design changes before the test needs revisiting.
+COLLAPSE_FLOOR = 8.0
+
+
 class TestIconSets:
     def test_every_bundled_set_loads_all_states(self):
         for name in BUNDLED_SETS:
@@ -272,11 +286,34 @@ class TestIconSets:
             assert icons.aspect(state) == pytest.approx(1.0, abs=0.01)
 
     @pytest.mark.parametrize("name", ["default", "default-light"])
-    def test_each_default_state_is_visually_distinct(self, name):
-        """Ring silhouettes differ, so the set survives greyscale and colour blindness."""
+    @pytest.mark.parametrize("size", [MIN_LABEL_SIZE, 32])
+    def test_each_default_state_is_visually_distinct(self, name, size):
+        """Survives greyscale printing and colour blindness at the smallest label drawn.
+
+        Asserted at 20 px as well as a comfortable size, because 20 px is where a ring
+        break pattern is at risk of closing up under the downscale — and where the set
+        previously failed while still passing a distinctness check run at 32 px.
+        """
         icons = IconSet(icon_set=name)
-        greyscale = {state: icons.get(state, 32).convert("LA").tobytes() for state in LABEL_STATES}
-        assert len(set(greyscale.values())) == len(LABEL_STATES)
+
+        rendered = {}
+        for state in LABEL_STATES:
+            icon = icons.get(state, size)
+            # Composited onto mid-grey: the discs are translucent, and comparing raw
+            # RGBA would let an alpha difference stand in for a visible one.
+            ground = Image.new("RGBA", icon.size, (128, 128, 128, 255))
+            ground.alpha_composite(icon)
+            rendered[state] = ground.convert("L")
+
+        assert len({image.tobytes() for image in rendered.values()}) == len(LABEL_STATES)
+
+        for first, second in itertools.combinations(LABEL_STATES, 2):
+            difference = ImageChops.difference(rendered[first], rendered[second])
+            mean = ImageStat.Stat(difference).mean[0]
+            assert mean >= COLLAPSE_FLOOR, (
+                f"{first.value} and {second.value} are within {mean:.1f} mean grey levels "
+                f"at {size}px in the {name!r} set"
+            )
 
     def test_composite_uses_the_modified_mark(self):
         """A composite containing AI elements is 'partially modified with AI'."""

@@ -38,16 +38,58 @@ SUPERSAMPLE = 4  # PIL does not antialias; draw big and downsample instead.
 
 OUT = pathlib.Path(__file__).resolve().parent.parent / "ai-labels"
 
+#: Minimum ring gap, in degrees. On a 20 px icon - the smallest label the plugin will
+#: draw - the ring's circumference is only ~50 px, so a 50 deg gap is barely 7 px of arc
+#: and closes up under the downscale, leaving hue as the only cue. Both break patterns
+#: below are built from this constant rather than written as literal angles, so the
+#: constraint cannot quietly drift away from the docstring that states it.
+MIN_RING_GAP = 90
+
+
+def side_gaps(width):
+    """Two arcs, leaving gaps of `width` degrees centred on the left and right."""
+    half = width / 2
+    return ((180 + half, 360 - half), (half, 180 - half))
+
+
+def bottom_gap(width):
+    """One arc, leaving a gap of `width` degrees centred on the bottom."""
+    half = width / 2
+    return ((90 + half, 90 - half),)
+
+
+CLOSED = ((0, 360),)
+
 #: Ring arcs per state, as (start, end) angle pairs in PIL's convention
 #: (0 deg = 3 o'clock, increasing clockwise). The silhouettes are deliberately
 #: far apart: a closed ring, a horseshoe open at the bottom, and two arcs facing
 #: each other across open sides.
 RINGS = {
-    "ai_generated": ((0, 360),),
-    "ai_manipulated": ((135, 45),),
-    "ai_composite": ((200, 340), (20, 160)),
-    "unknown": ((0, 360),),
+    "ai_generated": CLOSED,
+    "ai_manipulated": bottom_gap(MIN_RING_GAP),
+    "ai_composite": side_gaps(MIN_RING_GAP),
+    "unknown": CLOSED,
 }
+
+
+def check_gaps():
+    """Fail loudly if any break pattern violates MIN_RING_GAP.
+
+    Construction from the constant already guarantees this; the check exists so that
+    hand-editing an arc back to literal angles is caught at generation time rather than
+    shipping as artwork whose legibility silently regressed.
+    """
+    for state, arcs in RINGS.items():
+        if arcs == CLOSED:
+            continue
+        spans = sorted(((s % 360, (e + 360 if e <= s else e) - s) for s, e in arcs))
+        for i, (start, length) in enumerate(spans):
+            gap = (spans[(i + 1) % len(spans)][0] - (start + length)) % 360
+            if gap + 1e-9 < MIN_RING_GAP:
+                raise SystemExit(
+                    f"{state}: ring gap of {gap:g} deg is below the "
+                    f"{MIN_RING_GAP} deg minimum; it will close up at 20 px"
+                )
 
 
 class Palette:
@@ -195,6 +237,7 @@ def build(state: str, palette: Palette) -> Image.Image:
 
 
 def main():
+    check_gaps()
     for palette in (DARK, LIGHT):
         out = OUT / palette.name
         out.mkdir(parents=True, exist_ok=True)
