@@ -19,11 +19,16 @@ from thumbor.config import Config
 from thumbor.context import Context
 from thumbor.importer import Importer
 
+from thumbor_ai_label.config import parse_draw_states
 from thumbor_ai_label.detect import SourceType
 from thumbor_ai_label.filters.ai_label import Filter
+from thumbor_ai_label.icons import LABEL_STATES
 from thumbor_ai_label.label import apply, decide_for_request
 from thumbor_ai_label.policy import Reason
 from thumbor_ai_label.state import get_scan
+
+#: Every state except ``unknown``: the narrowing an operator is most likely to want.
+AI_ONLY = ["ai_generated", "ai_manipulated", "ai_composite"]
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
@@ -198,6 +203,95 @@ class TestDrawing:
             self.run_filter(
                 make_jpeg(term="trainedAlgorithmicMedia"),
                 AI_LABEL_ICONS={"ai_generated": "/nonexistent/icon.png"},
+                AI_LABEL_STRICT_ERRORS=True,
+            )
+
+
+class TestDrawStates:
+    """`AI_LABEL_DRAW_STATES` decides which verdicts reach the pixels.
+
+    Suppressing a state is not the same as not detecting it: the verdict is still
+    computed and still published on /meta/. See test_meta.py for that half.
+    """
+
+    def run_filter(self, raw, **config):
+        context = build_context(**config)
+        engine = load(context, raw)
+        before = engine.image.copy()
+        drawn = asyncio.run(apply(context, engine))
+        return before, engine.image, drawn
+
+    def test_unknown_can_be_left_unmarked(self):
+        """The case the key exists for: fail-closed detection, no mark on a maybe."""
+        before, after, drawn = self.run_filter(make_jpeg(), AI_LABEL_DRAW_STATES=AI_ONLY)
+        assert drawn is False
+        assert not corner_changed(before, after)
+
+    def test_a_state_left_in_is_still_drawn(self):
+        before, after, drawn = self.run_filter(
+            make_jpeg(term="trainedAlgorithmicMedia"),
+            AI_LABEL_DRAW_STATES=AI_ONLY,
+        )
+        assert drawn is True
+        assert corner_changed(before, after)
+
+    def test_the_verdict_survives_suppression(self):
+        """Suppression is about pixels only; the decision is untouched."""
+        context = build_context(AI_LABEL_DRAW_STATES=AI_ONLY)
+        load(context, make_jpeg())
+        decision = asyncio.run(decide_for_request(context))
+        assert decision.state is SourceType.UNKNOWN
+        assert decision.reason is Reason.INCONCLUSIVE
+
+    def test_an_empty_list_draws_nothing_at_all(self):
+        """Meta-only mode: verdicts published, no pixels touched."""
+        before, after, drawn = self.run_filter(
+            make_jpeg(term="trainedAlgorithmicMedia"),
+            AI_LABEL_DRAW_STATES=[],
+        )
+        assert drawn is False
+        assert not corner_changed(before, after)
+
+    def test_the_default_draws_every_state(self):
+        assert parse_draw_states(None) == frozenset(LABEL_STATES)
+
+    def test_a_comma_separated_string_is_accepted(self):
+        """A value passed through the environment arrives as a string, not a list."""
+        assert parse_draw_states("ai_generated, unknown") == {
+            SourceType.AI_GENERATED,
+            SourceType.UNKNOWN,
+        }
+
+    def test_an_empty_string_reads_as_unset(self):
+        """An unrendered template variable must not silently disable labelling."""
+        assert parse_draw_states("") == frozenset(LABEL_STATES)
+        assert parse_draw_states("  ") == frozenset(LABEL_STATES)
+
+    def test_case_is_not_significant(self):
+        assert parse_draw_states(["AI_Generated"]) == {SourceType.AI_GENERATED}
+
+    def test_an_unknown_state_name_is_rejected(self):
+        with pytest.raises(ValueError, match="unknown label state"):
+            parse_draw_states(["ai_hallucinated"])
+
+    def test_not_ai_is_rejected_because_it_never_draws(self):
+        """A positively identified photograph has no mark to suppress."""
+        with pytest.raises(ValueError, match="unknown label state"):
+            parse_draw_states(["not_ai"])
+
+    def test_a_bad_state_name_does_not_break_delivery(self):
+        before, after, drawn = self.run_filter(
+            make_jpeg(term="trainedAlgorithmicMedia"),
+            AI_LABEL_DRAW_STATES=["nope"],
+        )
+        assert drawn is False
+        assert not corner_changed(before, after)
+
+    def test_a_bad_state_name_is_fatal_under_strict_errors(self):
+        with pytest.raises(ValueError, match="unknown label state"):
+            self.run_filter(
+                make_jpeg(term="trainedAlgorithmicMedia"),
+                AI_LABEL_DRAW_STATES=["nope"],
                 AI_LABEL_STRICT_ERRORS=True,
             )
 

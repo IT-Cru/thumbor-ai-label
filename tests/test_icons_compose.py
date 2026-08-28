@@ -83,6 +83,15 @@ class TestIconSet:
         with pytest.raises(IconError, match="could not read"):
             IconSet(overrides={"ai_generated": str(path)})
 
+    def test_an_empty_override_is_rejected_rather_than_falling_back(self):
+        """It used to load the bundled icon, so "" looked like it meant something."""
+        with pytest.raises(IconError, match="empty icon override"):
+            IconSet(overrides={"unknown": ""})
+
+    def test_a_none_override_is_rejected_too(self):
+        with pytest.raises(IconError, match="AI_LABEL_DRAW_STATES"):
+            IconSet(overrides={"unknown": None})
+
     def test_an_unknown_state_in_overrides_is_rejected(self):
         with pytest.raises(IconError, match="unknown label states"):
             IconSet(overrides={"ai_hallucinated": "nowhere/x.png"})

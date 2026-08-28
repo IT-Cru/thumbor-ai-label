@@ -51,13 +51,16 @@ DEFAULT_DISCLOSURES = {
 def _would_draw(context, decision: Decision, target: tuple[int, int] | None) -> bool | None:
     """Whether an image request at these dimensions would carry a visible label.
 
-    The distinction matters: below the minimum size no label is drawn, so the DOM
-    disclosure becomes the *only* disclosure rather than a supplement to it.
+    The distinction matters: below the minimum size, or with the state configured out
+    of ``AI_LABEL_DRAW_STATES``, no label is drawn - so the DOM disclosure becomes the
+    *only* disclosure rather than a supplement to it.
     """
     if not decision.should_label or not target:
         return False
     try:
         settings = get_settings(context.config)
+        if not settings.draws(decision.state):
+            return False
         aspect = settings.icons.aspect(decision.state)
         icon_size = (max(1, round(aspect * 1000)), 1000)
         return fit_label(target, icon_size, settings.layout) is not None

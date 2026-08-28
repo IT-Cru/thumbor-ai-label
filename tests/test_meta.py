@@ -118,6 +118,34 @@ class TestLabelledFlag(MetaCase):
         assert self.verdict(CAMERA)["labelled"] is False
 
 
+class TestSuppressedStateIsStillReported(MetaCase):
+    """A state dropped from AI_LABEL_DRAW_STATES is still detected and still published.
+
+    This is the whole reason suppression belongs in config rather than in a
+    transparent icon: `labelled` stays honest, so a CMS knows the disclosure it
+    writes into the DOM is the only one the image has.
+    """
+
+    extra_config: ClassVar[dict] = {
+        "AI_LABEL_DRAW_STATES": ["ai_generated", "ai_manipulated", "ai_composite"]
+    }
+
+    def test_the_verdict_is_published_anyway(self):
+        verdict = self.verdict(PLAIN)
+        assert verdict["label"] == "unknown"
+        assert verdict["reason"] == "inconclusive"
+
+    def test_labelled_is_false_because_no_pixels_carry_it(self):
+        assert self.verdict(PLAIN)["labelled"] is False
+
+    def test_the_disclosure_string_is_still_offered(self):
+        """The DOM disclosure is now the only one, so it had better be there."""
+        assert self.verdict(PLAIN)["disclosure"]
+
+    def test_a_state_left_in_still_reports_labelled(self):
+        assert self.verdict(AI)["labelled"] is True
+
+
 class TestVerbosity(MetaCase):
     def test_evidence_is_withheld_by_default(self):
         """Evidence can hold a generation-prompt fragment; this endpoint is public."""

@@ -11,6 +11,7 @@ from thumbor.utils import logger
 
 from .config import get_settings
 from .handler import AiLabelImagingHandler
+from .icons import LABEL_STATES
 
 
 class AiLabelServiceApp(ThumborServiceApp):
@@ -37,14 +38,33 @@ class AiLabelServiceApp(ThumborServiceApp):
 
         if not settings.enabled:
             logger.warning("[AiLabel] AI_LABEL_ENABLED is False; no labels will be drawn")
-        elif not settings.detectors:
+            return
+
+        if not settings.detectors:
             logger.warning("[AiLabel] no detectors configured; no labels will be drawn")
-        else:
-            logger.info(
-                "[AiLabel] ready: detectors=%s policy=%s",
-                ",".join(d.name for d in settings.detectors),
-                settings.policy.value,
+            return
+
+        # Narrowing AI_LABEL_DRAW_STATES weakens what the pixels disclose, so it is
+        # reported at boot rather than left to be discovered from the output.
+        dropped = [state.value for state in LABEL_STATES if state not in settings.draw_states]
+        if not settings.draw_states:
+            logger.warning(
+                "[AiLabel] AI_LABEL_DRAW_STATES is empty; no labels will be drawn and the "
+                "/meta/ verdict is the only disclosure"
             )
+        elif dropped:
+            logger.warning(
+                "[AiLabel] AI_LABEL_DRAW_STATES leaves %s unmarked; for those images the "
+                "/meta/ disclosure is the only one",
+                ",".join(dropped),
+            )
+
+        logger.info(
+            "[AiLabel] ready: detectors=%s policy=%s draw_states=%s",
+            ",".join(d.name for d in settings.detectors),
+            settings.policy.value,
+            ",".join(state.value for state in LABEL_STATES if state in settings.draw_states),
+        )
 
     def get_handlers(self):
         handlers = []

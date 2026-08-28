@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from thumbor.config import Config
 
 from .compose import Layout, Position
-from .detect import Confidence, Detector, load_detectors
-from .icons import BUNDLED_SETS, IconSet
+from .detect import Confidence, Detector, SourceType, load_detectors
+from .icons import BUNDLED_SETS, LABEL_STATES, IconSet
 from .policy import Policy
 
 GROUP = "AI Label"
@@ -50,6 +50,15 @@ Config.define(
     "AI_LABEL_ICONS",
     {},
     "Per-state icon overrides, e.g. {'ai_generated': '/etc/thumbor/icons/ai.png'}.",
+    GROUP,
+)
+Config.define(
+    "AI_LABEL_DRAW_STATES",
+    None,
+    "Which label states get a visible mark, e.g. ['ai_generated', 'ai_manipulated', "
+    "'ai_composite'] to leave 'unknown' unmarked. None draws all of them. A state left "
+    "out is still detected and still reported on /meta/, with 'labelled': false - so the "
+    "disclosure a CMS writes into the DOM becomes the only one for those images.",
     GROUP,
 )
 Config.define("AI_LABEL_OPACITY", 100, "Label opacity, 0-100.", GROUP)
@@ -104,6 +113,44 @@ Config.define(
     GROUP,
 )
 
+
+def parse_draw_states(value) -> frozenset[SourceType]:
+    """Resolve ``AI_LABEL_DRAW_STATES`` into the states that get a visible mark.
+
+    ``None`` means all of them: dropping a state weakens the disclosure an image
+    carries, so it has to be an explicit act and never a default.
+
+    A comma-separated string is accepted as well as a list, because a value passed
+    through the environment arrives as a string - derpconf hands environment values
+    over unparsed - and this key is one an operator will reasonably want to set from
+    a container's environment.
+    """
+    if value is None:
+        return frozenset(LABEL_STATES)
+
+    if isinstance(value, str):
+        # An empty string is an unset template variable, not a request to stop
+        # labelling everything. Read it as "not configured".
+        if not value.strip():
+            return frozenset(LABEL_STATES)
+        names = [part.strip() for part in value.split(",") if part.strip()]
+    else:
+        names = [str(name).strip() for name in value]
+
+    valid = {state.value: state for state in LABEL_STATES}
+    states = set()
+    for name in names:
+        state = valid.get(name.lower())
+        if state is None:
+            raise ValueError(
+                "unknown label state {!r} in AI_LABEL_DRAW_STATES; drawable states are {}".format(
+                    name, ", ".join(valid)
+                )
+            )
+        states.add(state)
+    return frozenset(states)
+
+
 SETTINGS_ATTR = "_ai_label_settings"
 
 
@@ -117,6 +164,7 @@ class Settings:
     min_confidence: Confidence
     icons: IconSet
     layout: Layout
+    draw_states: frozenset[SourceType]
     strict_errors: bool
 
     @classmethod
@@ -140,8 +188,17 @@ class Settings:
                 margin_ratio=float(config.AI_LABEL_MARGIN_RATIO),
                 min_margin=int(config.AI_LABEL_MIN_MARGIN),
             ),
+            draw_states=parse_draw_states(config.AI_LABEL_DRAW_STATES),
             strict_errors=bool(config.AI_LABEL_STRICT_ERRORS),
         )
+
+    def draws(self, state: SourceType | None) -> bool:
+        """Whether ``state`` gets a visible mark.
+
+        Both the draw path and the meta endpoint ask this one question, so what the
+        pixels carry and what ``/meta/`` reports cannot drift apart.
+        """
+        return state is not None and state in self.draw_states
 
 
 def get_settings(config) -> Settings:

@@ -133,6 +133,20 @@ class IconSet:
                 )
             )
 
+        # An empty or None value used to fall through to the bundled icon, so an
+        # operator writing {"unknown": ""} to mean "nothing here" silently got the
+        # default mark. A map of paths holds paths; suppression lives elsewhere.
+        blank_keys = [
+            key for key, path in overrides.items() if path is None or not str(path).strip()
+        ]
+        if blank_keys:
+            raise IconError(
+                "empty icon override for {}; a path is required. To leave a state "
+                "unmarked, drop it from AI_LABEL_DRAW_STATES instead.".format(
+                    ", ".join(repr(key) for key in sorted(blank_keys))
+                )
+            )
+
         self._icons: dict[SourceType, Image.Image] = {}
         for state in LABEL_STATES:
             path = overrides.get(state.value)
