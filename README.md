@@ -250,8 +250,25 @@ Every set comes in a variant for light imagery and one for dark, so the choice i
 family of marks you want, then which way round it reads against your pictures.
 
 The artwork is in [`ai-labels/`](https://github.com/IT-Cru/thumbor-ai-label/tree/main/ai-labels) at the repository root, one directory per
-set. To build a house style, copy a directory, edit the four PNGs, and point
-`AI_LABEL_ICONS` at them — or drop the directory beside the bundled ones and name it.
+set. To build a house style, copy a directory, edit the four PNGs, put it somewhere your
+container can reach, and name that directory:
+
+```python
+AI_LABEL_ICON_DIR = "/etc/thumbor/icon-sets"
+AI_LABEL_ICON_SET = "house-style"
+```
+
+A set is a subdirectory of `AI_LABEL_ICON_DIR` holding the same four filenames, so your
+own artwork resolves exactly like a bundled set — no rebuild, no bind-mount landing on top
+of installed package files. Both keys are plain strings, so both survive a `thumbor.conf`
+rendered from the environment.
+
+**While `AI_LABEL_ICON_DIR` is set, the bundled names do not resolve.** Sets are looked up
+there and nowhere else, and `AI_LABEL_ICON_SET = "eu"` against a directory with no `eu/` in
+it fails at boot. That is deliberate: a silent fallback would turn a typo in a house-style
+name into this plugin's default marks going out under your byline — a wrong label rather
+than a missing one. To use a bundled set again, unset the key, or copy the set into your
+directory.
 
 The `eu` sets are the European Commission's harmonised icons, published 10 June 2026 and
 free to use without attribution. **Their use is optional; the disclosure obligation is
@@ -271,7 +288,8 @@ Using one on an image whose provenance merely could not be established would mak
 the evidence does not support, so that state keeps this plugin's own neutral icon.
 
 Labels are **not assumed to be square** — the EU marks are icon-plus-text lockups around
-3:1, so size settings describe *height* and width follows the icon. Per-state overrides:
+3:1, so size settings describe *height* and width follows the icon. Per-state overrides,
+for swapping one mark rather than a whole set:
 
 ```python
 AI_LABEL_ICONS = {"ai_generated": "/etc/thumbor/icons/house-style.png"}
@@ -372,7 +390,8 @@ out of EXIF `UserComment`, and this endpoint is publicly reachable.
 | `AI_LABEL_DETECTORS` | `None` | Ordered detector names; `None` uses the default order |
 | `AI_LABEL_POLICY` | `"strict"` | `strict` or `relaxed` |
 | `AI_LABEL_MIN_CONFIDENCE` | `"low"` | Lowest confidence that may raise an AI label |
-| `AI_LABEL_ICON_SET` | `"default"` | `default`, `default-light`, `eu`, or `eu-white` |
+| `AI_LABEL_ICON_DIR` | `None` | Directory of icon sets; `None` uses the bundled artwork |
+| `AI_LABEL_ICON_SET` | `"default"` | `default`, `default-light`, `eu`, `eu-white`, or a set in `AI_LABEL_ICON_DIR` |
 | `AI_LABEL_ICONS` | `{}` | Per-state icon path overrides; win over the set |
 | `AI_LABEL_DRAW_STATES` | `None` | States that get a visible mark; `None` draws all four |
 | `AI_LABEL_OPACITY` | `100` | Label opacity, 0–100 |

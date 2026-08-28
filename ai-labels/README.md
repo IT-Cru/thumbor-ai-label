@@ -46,7 +46,21 @@ whichever of the two locations exists.
 
 ## House styles
 
-Copy a set directory, edit the four PNGs, and either point `AI_LABEL_ICONS` at the files
-or drop the directory beside these and name it in `AI_LABEL_ICON_SET`. Overrides are
-decoded once at startup, so a missing or corrupt file fails loudly at boot rather than
-becoming a broken image mid-request.
+Copy a set directory and edit the four PNGs, keeping the filenames. Then put the directory
+holding it somewhere the server can reach — a mounted volume, not the installed package —
+and name it:
+
+```python
+AI_LABEL_ICON_DIR = "/etc/thumbor/icon-sets"
+AI_LABEL_ICON_SET = "house-style"
+```
+
+Your set resolves exactly like a bundled one. To swap a single mark instead of a whole
+set, `AI_LABEL_ICONS` takes per-state paths.
+
+While `AI_LABEL_ICON_DIR` is set, sets are looked up there and nowhere else: the bundled
+names do not resolve, so a mistyped house-style name fails at boot rather than quietly
+shipping these default marks. Copy a bundled set in if you want it alongside your own.
+
+Everything is decoded once at startup, so a missing or corrupt file fails loudly at boot
+rather than becoming a broken image mid-request.

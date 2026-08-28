@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import pathlib
 
 import pytest
 
@@ -19,10 +20,10 @@ from thumbor.config import Config
 from thumbor.context import Context
 from thumbor.importer import Importer
 
-from thumbor_ai_label.config import parse_draw_states
+from thumbor_ai_label.config import get_settings, parse_draw_states, parse_icon_dir
 from thumbor_ai_label.detect import SourceType
 from thumbor_ai_label.filters.ai_label import Filter
-from thumbor_ai_label.icons import LABEL_STATES
+from thumbor_ai_label.icons import LABEL_STATES, IconError
 from thumbor_ai_label.label import apply, decide_for_request
 from thumbor_ai_label.policy import Reason
 from thumbor_ai_label.state import get_scan
@@ -294,6 +295,100 @@ class TestDrawStates:
                 AI_LABEL_DRAW_STATES=["nope"],
                 AI_LABEL_STRICT_ERRORS=True,
             )
+
+
+class TestIconDir:
+    """`AI_LABEL_ICON_DIR` is how a house set ships: a mounted volume, not a rebuild.
+
+    Both this and `AI_LABEL_ICON_SET` are strings, so unlike the dict-valued
+    `AI_LABEL_ICONS` the pair survives a config rendered from the environment.
+    """
+
+    def house_set(self, tmp_path, name="house-style", colour=(255, 0, 0, 255)):
+        directory = tmp_path / name
+        directory.mkdir()
+        for state in LABEL_STATES:
+            Image.new("RGBA", (64, 64), colour).save(directory / f"{state.value}.png")
+        return directory
+
+    def test_the_configured_directory_reaches_the_icon_set(self, tmp_path):
+        """The gap this closes: IconSet took the parameter, config never passed it."""
+        self.house_set(tmp_path)
+        settings = get_settings(
+            build_context(
+                AI_LABEL_ICON_DIR=str(tmp_path),
+                AI_LABEL_ICON_SET="house-style",
+            ).config
+        )
+
+        assert settings.icons.name == "house-style"
+        for state in LABEL_STATES:
+            assert settings.icons.get(state, 64).getpixel((32, 32)) == (255, 0, 0, 255)
+
+    def test_the_house_mark_is_what_lands_on_the_image(self, tmp_path):
+        self.house_set(tmp_path)
+        context = build_context(
+            AI_LABEL_ICON_DIR=str(tmp_path),
+            AI_LABEL_ICON_SET="house-style",
+        )
+        engine = load(context, make_jpeg(term="trainedAlgorithmicMedia"))
+        assert asyncio.run(apply(context, engine)) is True
+
+        width, height = engine.image.size
+        corner = engine.image.crop((width // 2, height // 2, width, height)).convert("RGB")
+        assert any(colour == (255, 0, 0) for _, colour in corner.getcolors(maxcolors=1 << 20))
+
+    def test_leaving_it_unset_keeps_the_bundled_artwork(self):
+        settings = get_settings(build_context().config)
+        assert settings.icons.name == "default"
+        assert settings.icons.get(SourceType.AI_GENERATED, 32).height == 32
+
+    def test_a_missing_house_set_does_not_take_down_delivery(self, tmp_path):
+        """Same shape as every other icon failure: loud in the log, image still served."""
+        context = build_context(
+            AI_LABEL_ICON_DIR=str(tmp_path),
+            AI_LABEL_ICON_SET="typo-style",
+        )
+        engine = load(context, make_jpeg(term="trainedAlgorithmicMedia"))
+        before = engine.image.copy()
+        assert asyncio.run(apply(context, engine)) is False
+        assert not corner_changed(before, engine.image)
+
+    def test_a_missing_house_set_is_fatal_under_strict_errors(self, tmp_path):
+        context = build_context(
+            AI_LABEL_ICON_DIR=str(tmp_path),
+            AI_LABEL_ICON_SET="typo-style",
+            AI_LABEL_STRICT_ERRORS=True,
+        )
+        engine = load(context, make_jpeg(term="trainedAlgorithmicMedia"))
+        with pytest.raises(IconError, match="AI_LABEL_ICON_DIR"):
+            asyncio.run(apply(context, engine))
+
+    def test_a_bundled_name_is_not_a_silent_fallback(self, tmp_path):
+        """A typo in a house name must fail, not ship this plugin's default marks."""
+        self.house_set(tmp_path)
+        with pytest.raises(IconError, match="do not resolve"):
+            get_settings(
+                build_context(
+                    AI_LABEL_ICON_DIR=str(tmp_path),
+                    AI_LABEL_ICON_SET="default",
+                    AI_LABEL_STRICT_ERRORS=True,
+                ).config
+            )
+
+    def test_the_default_is_the_bundled_directory(self):
+        assert parse_icon_dir(None) is None
+
+    def test_an_empty_string_reads_as_unset(self):
+        """An unrendered template variable must not become a relative directory."""
+        assert parse_icon_dir("") is None
+        assert parse_icon_dir("   ") is None
+
+    def test_a_padded_path_is_used_rather_than_reported_missing(self):
+        """Whitespace is invisible in a config file and in the error it would cause."""
+        assert parse_icon_dir("  /etc/thumbor/icon-sets  ") == pathlib.Path(
+            "/etc/thumbor/icon-sets"
+        )
 
 
 class TestFilterWiring:

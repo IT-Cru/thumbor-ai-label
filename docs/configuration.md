@@ -141,8 +141,30 @@ AI_LABEL_ICON_SET = "eu-white"       # official EU labels, light, for dark image
 Every set comes in a variant for light imagery and one for dark, so the choice is which
 family of marks you want, then which way round it reads against your pictures.
 
-The artwork is in `ai-labels/` at the repository root, one directory per set. To build a
-house style, copy a directory, edit the four PNGs, and point `AI_LABEL_ICONS` at them.
+The artwork is in `ai-labels/` at the repository root, one directory per set.
+
+### A house style
+
+Copy a set directory, edit the four PNGs, put it somewhere your container can reach, and
+name that directory:
+
+```python
+AI_LABEL_ICON_DIR = "/etc/thumbor/icon-sets"
+AI_LABEL_ICON_SET = "house-style"
+```
+
+A set is a subdirectory of `AI_LABEL_ICON_DIR` holding the same four filenames, so your own
+artwork resolves exactly like a bundled set. That is one mounted volume and one name —
+rather than a rebuild to get files into the installed package, or a bind-mount landing on
+top of it. Both keys are plain strings, so both survive a `thumbor.conf` rendered from the
+environment, which the dict-valued `AI_LABEL_ICONS` cannot do.
+
+!!! warning "While `AI_LABEL_ICON_DIR` is set, the bundled names do not resolve"
+    Sets are looked up there and nowhere else, so `AI_LABEL_ICON_SET = "eu"` against a
+    directory with no `eu/` in it fails at boot rather than falling back. A silent
+    fallback would turn a typo in a house-style name into this plugin's default marks
+    going out under your byline — a wrong label rather than a missing one. To use a
+    bundled set again, unset the key, or copy the set into your directory.
 
 The `eu` sets are the European Commission's harmonised icons, published 10 June 2026 and
 free to use without attribution. **Their use is optional; the disclosure obligation is
@@ -163,7 +185,8 @@ exactly "pre-existing human-made content partially modified with AI".
     state keeps this plugin's own neutral icon.
 
 Labels are **not assumed to be square** — the EU marks are icon-plus-text lockups around
-3:1, so size settings describe *height* and width follows the icon. Per-state overrides:
+3:1, so size settings describe *height* and width follows the icon. Per-state overrides,
+for swapping one mark rather than a whole set:
 
 ```python
 AI_LABEL_ICONS = {"ai_generated": "/etc/thumbor/icons/house-style.png"}
@@ -213,7 +236,8 @@ suppress.
 
 Because the value is a list of plain strings, it also survives being passed through the
 environment: `AI_LABEL_DRAW_STATES=ai_generated,ai_manipulated` is read as a
-comma-separated list, which `AI_LABEL_ICONS` cannot be.
+comma-separated list, which `AI_LABEL_ICONS` cannot be. `AI_LABEL_ICON_DIR` and
+`AI_LABEL_ICON_SET` are the same shape of key for the same reason.
 
 ## The meta endpoint
 

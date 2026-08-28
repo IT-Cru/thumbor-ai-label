@@ -5,6 +5,7 @@ Importing this module registers the keys with Thumbor's config system.
 
 from __future__ import annotations
 
+import pathlib
 from dataclasses import dataclass
 
 from thumbor.config import Config
@@ -38,12 +39,22 @@ Config.define(
     GROUP,
 )
 Config.define(
+    "AI_LABEL_ICON_DIR",
+    None,
+    "Directory holding icon sets, one subdirectory per set, for a house style that "
+    "ships as a mounted volume rather than as edits inside the installed package. "
+    "None uses the bundled artwork. While this is set the bundled set names do not "
+    "resolve: a set is looked up here and nowhere else.",
+    GROUP,
+)
+Config.define(
     "AI_LABEL_ICON_SET",
     "default",
-    "Which bundled icon set to draw: " + ", ".join(BUNDLED_SETS) + ". "
+    "Which icon set to draw. Bundled: " + ", ".join(BUNDLED_SETS) + ". "
     "'default' and 'default-light' are this plugin's own marks; "
     "'eu' and 'eu-white' are the European Commission's harmonised AI labels. "
-    "The plain names suit light imagery and the light/white ones dark imagery.",
+    "The plain names suit light imagery and the light/white ones dark imagery. "
+    "With AI_LABEL_ICON_DIR set, this names a subdirectory of that instead.",
     GROUP,
 )
 Config.define(
@@ -114,6 +125,21 @@ Config.define(
 )
 
 
+def parse_icon_dir(value) -> pathlib.Path | None:
+    """Resolve ``AI_LABEL_ICON_DIR`` into a base directory, or ``None`` for bundled.
+
+    Both this and ``AI_LABEL_ICON_SET`` are plain strings, which is the point of the
+    key: unlike the dict-valued ``AI_LABEL_ICONS``, a whole house set can be named
+    from a container's environment. So the empty string an unrendered template
+    variable leaves behind has to read as "not configured" rather than as a set
+    directory called ``""``, which would resolve relative to the working directory.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    return pathlib.Path(text) if text else None
+
+
 def parse_draw_states(value) -> frozenset[SourceType]:
     """Resolve ``AI_LABEL_DRAW_STATES`` into the states that get a visible mark.
 
@@ -177,6 +203,7 @@ class Settings:
             icons=IconSet(
                 overrides=config.AI_LABEL_ICONS or {},
                 opacity=int(config.AI_LABEL_OPACITY),
+                icon_dir=parse_icon_dir(config.AI_LABEL_ICON_DIR),
                 icon_set=str(config.AI_LABEL_ICON_SET),
             ),
             layout=Layout(

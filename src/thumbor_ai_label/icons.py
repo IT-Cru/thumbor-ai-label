@@ -88,8 +88,13 @@ def set_directory(name: str, base: pathlib.Path | None = None) -> pathlib.Path:
 
     Every set, ``default`` included, is a subdirectory. That was not always true -
     ``default`` used to sit loose in the icon root - and making it uniform is what
-    lets an operator point ``icon_dir`` at a directory of their own house sets and
-    have them resolve exactly like the bundled ones.
+    lets an operator point ``AI_LABEL_ICON_DIR`` at a directory of their own house
+    sets and have them resolve exactly like the bundled ones.
+
+    ``base`` replaces the bundled directory rather than extending it. There is no
+    search across both: a mistyped house-style name has to fail, because falling
+    back would ship this plugin's default marks under the operator's name - a wrong
+    label rather than a missing one.
     """
     base = pathlib.Path(base) if base else DEFAULT_ICON_DIR
     return base / name
@@ -114,12 +119,30 @@ class IconSet:
 
         self.opacity = opacity
         self.name = icon_set
-        self._dir = set_directory(icon_set, icon_dir)
+        # Normalised once, so the lookup below and the error it may raise cannot
+        # disagree about whether a base directory was configured.
+        base = pathlib.Path(icon_dir) if icon_dir else None
+        self._dir = set_directory(icon_set, base)
 
         if not self._dir.is_dir():
+            # Which directory was searched is the whole of the diagnosis here, and it
+            # is the one thing the old message left out: with AI_LABEL_ICON_DIR set,
+            # "unknown icon set 'eu'" reads as a broken install rather than as a set
+            # that was never copied into the mounted volume.
+            if base is None:
+                raise IconError(
+                    "unknown icon set {!r} ({} does not exist); bundled sets are {}. "
+                    "To draw your own artwork, put its set directories somewhere and "
+                    "name that directory in AI_LABEL_ICON_DIR.".format(
+                        icon_set, self._dir, ", ".join(BUNDLED_SETS)
+                    )
+                )
             raise IconError(
-                "unknown icon set {!r} ({} does not exist); bundled sets are {}".format(
-                    icon_set, self._dir, ", ".join(BUNDLED_SETS)
+                "unknown icon set {!r} ({} does not exist); sets resolve as "
+                "subdirectories of AI_LABEL_ICON_DIR ({}), and while that is set the "
+                "bundled names ({}) do not resolve - copy the set in, or unset "
+                "AI_LABEL_ICON_DIR to use the bundled artwork.".format(
+                    icon_set, self._dir, base, ", ".join(BUNDLED_SETS)
                 )
             )
 

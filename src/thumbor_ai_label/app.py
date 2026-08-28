@@ -59,10 +59,14 @@ class AiLabelServiceApp(ThumborServiceApp):
                 ",".join(dropped),
             )
 
+        # The icon set is named here because AI_LABEL_ICON_DIR makes "default" mean
+        # different artwork on different deployments, and a mark drawn from the wrong
+        # directory looks entirely correct in the output.
         logger.info(
-            "[AiLabel] ready: detectors=%s policy=%s draw_states=%s",
+            "[AiLabel] ready: detectors=%s policy=%s icon_set=%s draw_states=%s",
             ",".join(d.name for d in settings.detectors),
             settings.policy.value,
+            settings.icons.name,
             ",".join(state.value for state in LABEL_STATES if state in settings.draw_states),
         )
 
