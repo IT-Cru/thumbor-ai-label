@@ -235,15 +235,23 @@ label it — the opposite of what raising the bar was for.
 
 ### Icon variants
 
-Three sets ship, each covering `ai_generated`, `ai_manipulated`, `ai_composite` and
+Four sets ship, each covering `ai_generated`, `ai_manipulated`, `ai_composite` and
 `unknown`. `NOT_AI` has no icon by design: a positively identified photograph gets no
 label at all.
 
 ```python
+AI_LABEL_ICON_SET = "default"  # this plugin's own marks, dark, for light imagery
+AI_LABEL_ICON_SET = "default-light"  # the same marks, light, for dark imagery
 AI_LABEL_ICON_SET = "eu"  # official EU labels, dark, for light imagery
 AI_LABEL_ICON_SET = "eu-white"  # official EU labels, light, for dark imagery
-AI_LABEL_ICON_SET = "default"  # this plugin's own marks
 ```
+
+Every set comes in a variant for light imagery and one for dark, so the choice is which
+family of marks you want, then which way round it reads against your pictures.
+
+The artwork is in [`ai-labels/`](https://github.com/IT-Cru/thumbor-ai-label/tree/main/ai-labels) at the repository root, one directory per
+set. To build a house style, copy a directory, edit the four PNGs, and point
+`AI_LABEL_ICONS` at them — or drop the directory beside the bundled ones and name it.
 
 The `eu` sets are the European Commission's harmonised icons, published 10 June 2026 and
 free to use without attribution. **Their use is optional; the disclosure obligation is
@@ -321,7 +329,7 @@ out of EXIF `UserComment`, and this endpoint is publicly reachable.
 | `AI_LABEL_DETECTORS` | `None` | Ordered detector names; `None` uses the default order |
 | `AI_LABEL_POLICY` | `"strict"` | `strict` or `relaxed` |
 | `AI_LABEL_MIN_CONFIDENCE` | `"low"` | Lowest confidence that may raise an AI label |
-| `AI_LABEL_ICON_SET` | `"default"` | `default`, `eu`, or `eu-white` |
+| `AI_LABEL_ICON_SET` | `"default"` | `default`, `default-light`, `eu`, or `eu-white` |
 | `AI_LABEL_ICONS` | `{}` | Per-state icon path overrides; win over the set |
 | `AI_LABEL_OPACITY` | `100` | Label opacity, 0–100 |
 | `AI_LABEL_POSITION` | `"bottom-right"` | Corner, or `center` |

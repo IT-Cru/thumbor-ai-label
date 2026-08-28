@@ -4,17 +4,22 @@ Icons are loaded and validated once at startup, not per request. Scaled variants
 are cached, because rescaling source artwork on every request would be the most
 expensive thing this plugin does.
 
-Three sets ship:
+Four sets ship:
 
-``default``
-    This plugin's own marks - a dark disc behind a light glyph, designed to stay
-    legible over arbitrary imagery at small sizes.
+``default`` / ``default-light``
+    This plugin's own marks, drawn by ``tools/make_icons.py``. ``default`` is a
+    light glyph on a dark disc, for light imagery; ``default-light`` is the
+    inverse, for dark imagery. Both stay legible down to 20 px.
 
 ``eu`` / ``eu-white``
     The European Commission's harmonised labels for AI-generated content, published
     10 June 2026 and free to use without attribution. ``eu`` is the dark-fill
     artwork for light imagery; ``eu-white`` is the inverse, for dark imagery. These
     are icon-plus-text lockups around 3:1, not squares.
+
+The artwork itself lives in ``ai-labels/`` at the repository root rather than
+under ``src/``: it is design source, regenerated and reviewed on its own cadence,
+and downstream users fork it to make house-style sets. See ``_bundled_dir``.
 
 No Thumbor import.
 """
@@ -38,10 +43,36 @@ LABEL_STATES = (
     SourceType.UNKNOWN,
 )
 
-DEFAULT_ICON_DIR = pathlib.Path(__file__).resolve().parent / "icons"
+#: In a wheel, ``pyproject.toml`` maps the repository's ``ai-labels/`` directory
+#: to ``thumbor_ai_label/labelsets/``, so the artwork installs inside the package
+#: and resolves next to this module.
+_PACKAGED_DIR = pathlib.Path(__file__).resolve().parent / "labelsets"
+
+#: In a checkout, there is no such directory: an editable install puts ``src`` on
+#: the path and leaves the artwork where git has it. This is the live copy that
+#: ``tools/make_icons.py`` writes, so contributors see their edits immediately.
+_CHECKOUT_DIR = pathlib.Path(__file__).resolve().parent.parent.parent / "ai-labels"
+
+
+#: Packaged location first, so a wheel that happens to be installed inside a
+#: checkout still reads its own artwork rather than the working tree's.
+_ICON_DIR_CANDIDATES = (_PACKAGED_DIR, _CHECKOUT_DIR)
+
+
+def _bundled_dir(candidates: tuple[pathlib.Path, ...] = _ICON_DIR_CANDIDATES) -> pathlib.Path:
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    # Neither exists, which means a broken install. Name the packaged location:
+    # it is the one an operator hitting this can actually do something about.
+    # IconSet then raises with the full path, rather than failing less obviously.
+    return candidates[0]
+
+
+DEFAULT_ICON_DIR = _bundled_dir()
 
 DEFAULT_SET = "default"
-BUNDLED_SETS = (DEFAULT_SET, "eu", "eu-white")
+BUNDLED_SETS = (DEFAULT_SET, "default-light", "eu", "eu-white")
 
 #: Scaled variants held per icon set. Label size tracks output size, so a busy
 #: server sees many distinct sizes; this bounds what that can cost.
@@ -53,8 +84,15 @@ class IconError(Exception):
 
 
 def set_directory(name: str, base: pathlib.Path | None = None) -> pathlib.Path:
+    """Directory holding one set's artwork.
+
+    Every set, ``default`` included, is a subdirectory. That was not always true -
+    ``default`` used to sit loose in the icon root - and making it uniform is what
+    lets an operator point ``icon_dir`` at a directory of their own house sets and
+    have them resolve exactly like the bundled ones.
+    """
     base = pathlib.Path(base) if base else DEFAULT_ICON_DIR
-    return base if name == DEFAULT_SET else base / name
+    return base / name
 
 
 class IconSet:

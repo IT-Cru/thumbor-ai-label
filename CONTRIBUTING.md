@@ -25,7 +25,7 @@ zero, and it means Apache-2.0 is effectively permanent.
 
 ### Third-party assets
 
-The European Commission icons under `src/thumbor_ai_label/icons/eu/` and `eu-white/` are
+The European Commission icons under `ai-labels/eu/` and `ai-labels/eu-white/` are
 **not** covered by this project's licence and are not ours to relicense. See
 [THIRD-PARTY.md](THIRD-PARTY.md). Do not edit them; run `tools/fetch_eu_icons.py` if
 they need refreshing.
@@ -76,7 +76,9 @@ and CI cannot disagree.
 ```
 
 CI runs that, plus the suite on Python 3.10 through 3.14 with `--cov-fail-under=100`.
-**Both are enforced, not aspirational.**
+**Both are enforced, not aspirational.** If a line cannot be reached by a test, that is
+usually a sign the line should not exist — several defensive code paths were deleted
+during development for exactly that reason.
 
 Formatting is `ruff format` with the default style at a 100-column limit. Do not hand-
 tune layout — run the formatter and take what it gives you. That is the point of having
@@ -84,14 +86,51 @@ one: layout stops being a thing anybody argues about in review.
 
 Two things that catch people out:
 
-- **`ruff format` also formats Python code blocks inside Markdown.** Aligning inline
-  comments in a README example will fail CI, because the formatter normalises them to two
-  spaces. Documented examples are held to the same style as the code.
+- **`ruff format .` rewrites Python code blocks inside Markdown, but CI does not check
+  them.** The `ruff-format` hook declares `types_or: [python, pyi, jupyter]`, so Markdown
+  never reaches it and a documented example's layout cannot fail CI. Matching the
+  formatter's style in examples is still the house convention — just know that running
+  the formatter across the whole tree silently rewrites prose files nothing is gating,
+  so prefer `ruff format src tests tools`.
 - **`ruff check` and `ruff format --check` are separate gates.** Passing the first says
   nothing about the second. Running pre-commit covers both, which is the reason to
-  install it. If a line cannot be reached by a test, that is usually a
-sign the line should not exist — several defensive branches were deleted during
-development for exactly that reason.
+  install it.
+
+## Branch naming
+
+Branches follow [Conventional Branch](https://conventionalbranch.org/) v1.1.0:
+`<type>/<description>`.
+
+| Prefix | For |
+|---|---|
+| `feature/` or `feat/` | new features |
+| `bugfix/` or `fix/` | bug fixes |
+| `hotfix/` | urgent fixes |
+| `release/` | preparing a release |
+| `chore/` | non-code tasks — dependencies, docs, tooling |
+
+Lowercase `a-z`, digits and hyphens only — no underscores, spaces or other punctuation,
+and no leading, trailing or consecutive hyphens. Dots are allowed only in a `release/`
+description, for the version number. Trunk branches (`main`) carry no prefix.
+
+Include the issue number where there is one:
+
+```text
+feature/issue-9-icon-sets
+fix/issue-42-webp-truncation
+chore/issue-1-mkdocs-site
+```
+
+Choose the prefix from what the change does to the *shipped plugin*, not from the size of
+the diff. Moving files around is `chore/`. Moving files around **and** adding a config
+value people can set is `feature/`, because the second half is the part they notice.
+
+**Do not use the AI agent source prefixes.** v1.1.0 adds `ai/`, `claude/`, `codex/`,
+`copilot/` and `cursor/` for branches an agent produced. This project does not use them.
+A branch name should say what the work *is*, so it still means something in a branch
+listing months later; which tool typed it is neither durable nor relevant to reviewing
+the diff. Authorship belongs in commit trailers, where `Co-Authored-By` already records
+it.
 
 ## Things that are easy to get wrong here
 
@@ -100,9 +139,14 @@ re-run it:
 
 | Files | Generator |
 |---|---|
-| `src/thumbor_ai_label/icons/*.png` | `tools/make_icons.py` |
-| `src/thumbor_ai_label/icons/eu*/` | `tools/fetch_eu_icons.py` |
+| `ai-labels/default/`, `ai-labels/default-light/` | `tools/make_icons.py` |
+| `ai-labels/eu/`, `ai-labels/eu-white/` | `tools/fetch_eu_icons.py` |
 | `tests/images/` — the numbered images and `manifest.json` | `tools/make_test_images.py` |
+
+`unknown.png` inside `ai-labels/eu/` and `ai-labels/eu-white/` is written by
+`fetch_eu_icons.py` but *drawn* by `make_icons.py`: the EU sets borrow this plugin's own
+neutral mark rather than an official one. Change the artwork with `make_icons.py`, then
+re-run `fetch_eu_icons.py` to copy it across.
 
 **`tests/images/real/` is not generated** and is not covered by the row above: those are
 contributed files from real AI tools. Editing one destroys the only reason it exists.

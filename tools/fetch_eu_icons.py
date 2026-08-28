@@ -30,7 +30,7 @@ PNG_ARCHIVE = "https://ec.europa.eu/newsroom/dae/redirection/document/129547"
 #: comfortable headroom without carrying multi-megabyte artwork in the wheel.
 TARGET_HEIGHT = 256
 
-ICONS = pathlib.Path(__file__).resolve().parent.parent / "src" / "thumbor_ai_label" / "icons"
+ICONS = pathlib.Path(__file__).resolve().parent.parent / "ai-labels"
 
 #: Which official file backs which label state, per bundled set.
 #:
@@ -56,6 +56,12 @@ SETS = {
         "ai_composite": "LABEL_AI MODIFIED_white.png",
     },
 }
+
+#: Which of this plugin's own sets supplies the neutral `unknown` mark. The EU
+#: artwork is picked for the imagery it sits on, so the neutral mark alongside it
+#: has to be picked the same way: a dark `unknown` next to the white EU labels
+#: would be the one illegible icon in the set.
+UNKNOWN_SOURCE = {"eu": "default", "eu-white": "default-light"}
 
 
 def main() -> None:
@@ -95,8 +101,9 @@ def main() -> None:
             )
 
         # The neutral unknown mark is this plugin's own, never an EU one.
-        shutil.copyfile(ICONS / "unknown.png", out / "unknown.png")
-        print(f"  {set_name}/unknown.png     (this plugin's neutral mark, not an EU icon)")
+        source_set = UNKNOWN_SOURCE[set_name]
+        shutil.copyfile(ICONS / source_set / "unknown.png", out / "unknown.png")
+        print(f"  {set_name}/unknown.png     (from {source_set}/, not an EU icon)")
 
 
 if __name__ == "__main__":

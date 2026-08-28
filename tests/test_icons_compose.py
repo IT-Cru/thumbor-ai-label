@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import itertools
+
 import pytest
-from PIL import Image
+from PIL import Image, ImageChops, ImageStat
 
 from thumbor_ai_label.compose import (
     Layout,
@@ -14,7 +16,14 @@ from thumbor_ai_label.compose import (
     paste_label,
 )
 from thumbor_ai_label.detect import SourceType
-from thumbor_ai_label.icons import BUNDLED_SETS, LABEL_STATES, IconError, IconSet
+from thumbor_ai_label.icons import (
+    BUNDLED_SETS,
+    LABEL_STATES,
+    IconError,
+    IconSet,
+    _bundled_dir,
+    set_directory,
+)
 
 
 class TestIconSet:
@@ -79,8 +88,16 @@ class TestIconSet:
             IconSet(overrides={"ai_hallucinated": "nowhere/x.png"})
 
     def test_a_missing_packaged_icon_is_reported(self, tmp_path):
+        # The set's directory exists but is empty, which is the case that has to
+        # name the missing file rather than blame the set name.
+        (tmp_path / "default").mkdir()
         with pytest.raises(IconError, match="is missing"):
             IconSet(icon_dir=tmp_path)
+
+    def test_every_set_including_default_lives_in_its_own_subdirectory(self, tmp_path):
+        """Uniform layout is what makes a directory of house sets drop straight in."""
+        for name in BUNDLED_SETS:
+            assert set_directory(name, tmp_path) == tmp_path / name
 
     def test_non_positive_height_is_rejected(self):
         with pytest.raises(IconError):
@@ -213,6 +230,18 @@ def test_a_margin_that_swallows_the_frame_yields_no_label():
     assert label_height((10, 10), layout) is None
 
 
+#: The smallest label the plugin will draw, per AI_LABEL_MIN_SIZE's default.
+MIN_LABEL_SIZE = 20
+
+#: Mean absolute greyscale difference below which two states have collapsed into each
+#: other. This is a collapse detector, not a measurement of ring geometry: the >=90 deg
+#: gap constraint is enforced exactly by MIN_RING_GAP and check_gaps() in
+#: tools/make_icons.py, which is the only place it can be checked as an angle rather
+#: than inferred from pixels. The measured worst pair is ~15, so this leaves roughly 2x
+#: headroom for deliberate design changes before the test needs revisiting.
+COLLAPSE_FLOOR = 8.0
+
+
 class TestIconSets:
     def test_every_bundled_set_loads_all_states(self):
         for name in BUNDLED_SETS:
@@ -233,16 +262,58 @@ class TestIconSets:
         assert icon.height == 40
         assert icon.width > 100
 
-    @pytest.mark.parametrize("name", ["eu", "eu-white"])
-    def test_unknown_never_uses_an_official_eu_mark(self, name):
+    #: Each EU set borrows its neutral mark from the variant tuned for the same
+    #: imagery, so a white EU label is never paired with a dark unknown.
+    @pytest.mark.parametrize("name,own", [("eu", "default"), ("eu-white", "default-light")])
+    def test_unknown_never_uses_an_official_eu_mark(self, name, own):
         """The EU marks assert content IS AI. Unproven provenance is not that claim."""
         eu = IconSet(icon_set=name)
-        default = IconSet()
+        ours = IconSet(icon_set=own)
         assert (
-            eu.get(SourceType.UNKNOWN, 64).tobytes()
-            == default.get(SourceType.UNKNOWN, 64).tobytes()
+            eu.get(SourceType.UNKNOWN, 64).tobytes() == ours.get(SourceType.UNKNOWN, 64).tobytes()
         )
         assert eu.aspect(SourceType.UNKNOWN) == pytest.approx(1.0, abs=0.01)
+
+    def test_the_two_default_variants_differ(self):
+        dark = IconSet(icon_set="default").get(SourceType.AI_GENERATED, 40)
+        light = IconSet(icon_set="default-light").get(SourceType.AI_GENERATED, 40)
+        assert dark.tobytes() != light.tobytes()
+
+    @pytest.mark.parametrize("name", ["default", "default-light"])
+    def test_default_variants_are_square(self, name):
+        icons = IconSet(icon_set=name)
+        for state in LABEL_STATES:
+            assert icons.aspect(state) == pytest.approx(1.0, abs=0.01)
+
+    @pytest.mark.parametrize("name", ["default", "default-light"])
+    @pytest.mark.parametrize("size", [MIN_LABEL_SIZE, 32])
+    def test_each_default_state_is_visually_distinct(self, name, size):
+        """Survives greyscale printing and colour blindness at the smallest label drawn.
+
+        Asserted at 20 px as well as a comfortable size, because 20 px is where a ring
+        break pattern is at risk of closing up under the downscale — and where the set
+        previously failed while still passing a distinctness check run at 32 px.
+        """
+        icons = IconSet(icon_set=name)
+
+        rendered = {}
+        for state in LABEL_STATES:
+            icon = icons.get(state, size)
+            # Composited onto mid-grey: the discs are translucent, and comparing raw
+            # RGBA would let an alpha difference stand in for a visible one.
+            ground = Image.new("RGBA", icon.size, (128, 128, 128, 255))
+            ground.alpha_composite(icon)
+            rendered[state] = ground.convert("L")
+
+        assert len({image.tobytes() for image in rendered.values()}) == len(LABEL_STATES)
+
+        for first, second in itertools.combinations(LABEL_STATES, 2):
+            difference = ImageChops.difference(rendered[first], rendered[second])
+            mean = ImageStat.Stat(difference).mean[0]
+            assert mean >= COLLAPSE_FLOOR, (
+                f"{first.value} and {second.value} are within {mean:.1f} mean grey levels "
+                f"at {size}px in the {name!r} set"
+            )
 
     def test_composite_uses_the_modified_mark(self):
         """A composite containing AI elements is 'partially modified with AI'."""
@@ -363,3 +434,32 @@ class TestApplyLabelEdges:
         result, drawn = apply_label(image, lambda h: stubborn, layout)
         assert drawn is True
         assert result.size == (400, 400)
+
+
+class TestBundledDirResolution:
+    """The artwork lives outside src/, so two locations have to be tried.
+
+    A wheel gets it at ``thumbor_ai_label/labelsets/`` (mapped in by pyproject);
+    a checkout with an editable install has only the repository's ``ai-labels/``.
+    """
+
+    def test_the_resolved_directory_holds_every_bundled_set(self):
+        for name in BUNDLED_SETS:
+            assert set_directory(name).is_dir(), name
+
+    def test_the_packaged_location_wins_over_the_checkout(self, tmp_path):
+        packaged = tmp_path / "labelsets"
+        packaged.mkdir()
+        checkout = tmp_path / "ai-labels"
+        checkout.mkdir()
+        assert _bundled_dir((packaged, checkout)) == packaged
+
+    def test_the_checkout_location_is_used_when_nothing_is_packaged(self, tmp_path):
+        checkout = tmp_path / "ai-labels"
+        checkout.mkdir()
+        assert _bundled_dir((tmp_path / "labelsets", checkout)) == checkout
+
+    def test_a_broken_install_reports_the_packaged_location(self, tmp_path):
+        """Not a crash at import: IconSet raises later, naming a path worth fixing."""
+        packaged = tmp_path / "labelsets"
+        assert _bundled_dir((packaged, tmp_path / "ai-labels")) == packaged

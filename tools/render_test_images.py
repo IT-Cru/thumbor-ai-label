@@ -21,6 +21,7 @@ from thumbor.context import Context
 from thumbor.importer import Importer
 
 import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from thumbor_ai_label.icons import BUNDLED_SETS
 from thumbor_ai_label.label import apply
 
 CORPUS = pathlib.Path(__file__).resolve().parent.parent / "tests" / "images"
@@ -54,7 +55,7 @@ def render(payload: bytes, width: int, icon_set: str, policy: str) -> Image.Imag
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--icon-set", default="default", choices=["default", "eu", "eu-white"])
+    parser.add_argument("--icon-set", default="default", choices=list(BUNDLED_SETS))
     parser.add_argument("--policy", default="strict", choices=["strict", "relaxed"])
     parser.add_argument("--width", type=int, default=420, help="style width in pixels")
     parser.add_argument("--columns", type=int, default=4)

@@ -12,8 +12,10 @@ explanatory detail lives here where it does not burden downstream users.
 
 **Files**
 
-    src/thumbor_ai_label/icons/eu/{ai_generated,ai_manipulated,ai_composite}.png
-    src/thumbor_ai_label/icons/eu-white/{ai_generated,ai_manipulated,ai_composite}.png
+    ai-labels/eu/{ai_generated,ai_manipulated,ai_composite}.png
+    ai-labels/eu-white/{ai_generated,ai_manipulated,ai_composite}.png
+
+In a built wheel these install as ``thumbor_ai_label/labelsets/eu*/``.
 
 **Source**
 <https://digital-strategy.ec.europa.eu/en/policies/eu-icons-labelling-ai-generated-content>
@@ -42,8 +44,9 @@ resting on trust in committed binaries.
 
 ## Not third-party
 
-`unknown.png` in both `eu/` and `eu-white/` is this project's own work under
-Apache-2.0. It is deliberately not an EU icon: the official marks assert that content
+`unknown.png` in both `ai-labels/eu/` and `ai-labels/eu-white/` is this project's own
+work under Apache-2.0 — a copy of the matching mark from `ai-labels/default/` and
+`ai-labels/default-light/`. It is deliberately not an EU icon: the official marks assert that content
 **is** AI-generated, which is not a claim that can be made about an image whose
 provenance merely could not be established. Looking visibly different from the official
 labels is the point.

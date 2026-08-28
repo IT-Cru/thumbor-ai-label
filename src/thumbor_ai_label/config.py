@@ -41,8 +41,9 @@ Config.define(
     "AI_LABEL_ICON_SET",
     "default",
     "Which bundled icon set to draw: " + ", ".join(BUNDLED_SETS) + ". "
-    "'eu' and 'eu-white' are the European Commission's harmonised AI labels; "
-    "'eu' suits light imagery and 'eu-white' dark imagery.",
+    "'default' and 'default-light' are this plugin's own marks; "
+    "'eu' and 'eu-white' are the European Commission's harmonised AI labels. "
+    "The plain names suit light imagery and the light/white ones dark imagery.",
     GROUP,
 )
 Config.define(

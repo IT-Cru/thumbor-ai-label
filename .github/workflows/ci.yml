@@ -64,6 +64,32 @@ jobs:
       - name: Check metadata
         run: python -m twine check dist/*
 
+      # The label artwork lives in ai-labels/ at the repository root and is mapped
+      # into the wheel by pyproject's package-dir. Nothing about that mapping is
+      # exercised by the test suite, which runs against a checkout where the
+      # artwork is found in place - so a wheel could ship with no icons at all and
+      # every test would still pass. Assert the payload here instead.
+      - name: Verify the wheel carries every icon set
+        run: |
+          python - <<'EOF'
+          import glob, zipfile
+
+          SETS = ("default", "default-light", "eu", "eu-white")
+          STATES = ("ai_generated", "ai_manipulated", "ai_composite", "unknown")
+
+          wheel = glob.glob("dist/*.whl")[0]
+          names = set(zipfile.ZipFile(wheel).namelist())
+          missing = [
+              f"thumbor_ai_label/labelsets/{s}/{state}.png"
+              for s in SETS
+              for state in STATES
+              if f"thumbor_ai_label/labelsets/{s}/{state}.png" not in names
+          ]
+          if missing:
+              raise SystemExit(f"{wheel} is missing {len(missing)} icons:\n  " + "\n  ".join(missing))
+          print(f"{wheel}: all {len(SETS) * len(STATES)} icons present")
+          EOF
+
       - name: Show resolved version
         run: ls dist/
 
