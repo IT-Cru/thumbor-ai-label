@@ -240,21 +240,53 @@ class TestMetaEndpoint(AlwaysOnCase):
         assert "target" in payload["thumbor"]
 
 
-class TestWithoutTheEngineHook(AlwaysOnCase):
-    """APP_CLASS set but ENGINE left alone - a likely misconfiguration.
+class TestWithoutTheEngineConfig(AlwaysOnCase):
+    """APP_CLASS alone is enough: stock ENGINE, still labelled.
 
-    It must serve images normally and say what is wrong, not fail and not silently
-    make every image look free of AI.
+    This used to be the documented misconfiguration - APP_CLASS without ENGINE
+    served every image unlabelled. The app now wraps whatever engine is configured,
+    so there is nothing left to get wrong here.
     """
 
     def get_app(self):
         type(self).extra_config = {"ENGINE": "thumbor.engines.pil"}
         return super().get_app()
 
-    def test_images_are_served_unlabelled_rather_than_failing(self):
+    def test_images_are_labelled_with_the_stock_engine(self):
         ai = self.get("/unsafe/400x300/ai.jpg")
         camera = self.get("/unsafe/400x300/camera.jpg")
-        assert bottom_right(ai) == bottom_right(camera)
+        assert bottom_right(ai) != bottom_right(camera)
+
+    def test_a_camera_image_is_still_left_alone(self):
+        """Wrapping the engine must not turn the hook into a blanket label."""
+        camera = self.get("/unsafe/400x300/camera.jpg")
+        plain_camera = Image.open(io.BytesIO(camera)).convert("RGB")
+        assert plain_camera.size == (400, 300)
+
+
+class TestWithAForeignEngine(AlwaysOnCase):
+    """The case ENGINE = "thumbor_ai_label.engine" could not express at all.
+
+    A deployment running its own engine used to have to choose between that engine
+    and being able to label; the app now composes with it.
+    """
+
+    def get_app(self):
+        type(self).extra_config = {"ENGINE": "tests.foreign_engine"}
+        return super().get_app()
+
+    def test_images_are_labelled_through_the_foreign_engine(self):
+        ai = self.get("/unsafe/400x300/ai.jpg")
+        camera = self.get("/unsafe/400x300/camera.jpg")
+        assert bottom_right(ai) != bottom_right(camera)
+
+    def test_the_foreign_engine_still_ran(self):
+        """Composed, not displaced - its load must still be the one doing the work."""
+        from tests.foreign_engine import loads_seen
+
+        loads_seen.clear()
+        self.get("/unsafe/400x300/ai.jpg")
+        assert loads_seen
 
 
 class TestEuIconSet(AlwaysOnCase):

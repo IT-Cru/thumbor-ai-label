@@ -7,10 +7,14 @@ import pytest
 pytest.importorskip("thumbor")
 
 from thumbor.config import Config
+from thumbor.context import Context
+from thumbor.engines.pil import Engine as PilEngine
 from thumbor.filters import PHASE_POST_TRANSFORM, FiltersFactory
+from thumbor.importer import Importer
 
 import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
 from thumbor_ai_label.app import AiLabelServiceApp
+from thumbor_ai_label.engine import AiLabelEngineMixin
 from thumbor_ai_label.handler import AlwaysOnFiltersFactory
 from thumbor_ai_label.icons import IconError
 
@@ -25,6 +29,129 @@ class FakeContext:
     def __init__(self, **overrides):
         self.config = Config(**overrides)
         self.modules = FakeModules()
+
+
+class BadImporterContext:
+    """A context whose importer cannot be inspected, to exercise the failure path."""
+
+    class Modules:
+        # Not a class, so issubclass() raises rather than answering.
+        importer = type("BrokenImporter", (), {"engine": 42, "gif_engine": None})()
+
+    def __init__(self, **overrides):
+        self.config = Config(**overrides)
+        self.modules = self.Modules()
+
+
+def real_context(**overrides) -> Context:
+    config = Config(**overrides)
+    importer = Importer(config)
+    importer.import_modules()
+    return Context(config=config, importer=importer)
+
+
+class TestEngineHookInstall:
+    """The app wraps whatever engines are configured, rather than being one.
+
+    `ENGINE` is a single slot, so owning it made this plugin mutually exclusive
+    with every other custom engine.
+    """
+
+    def test_the_configured_engine_is_wrapped(self):
+        context = real_context()
+        assert not issubclass(context.modules.importer.engine, AiLabelEngineMixin)
+
+        AiLabelServiceApp._install_engine_hook(context)
+
+        wrapped = context.modules.importer.engine
+        assert issubclass(wrapped, AiLabelEngineMixin)
+        assert issubclass(wrapped, PilEngine)
+
+    def test_a_foreign_engine_is_composed_not_replaced(self):
+        """The case ENGINE = "thumbor_ai_label.engine" could not express."""
+        from tests.foreign_engine import Engine as Foreign
+
+        context = real_context(ENGINE="tests.foreign_engine")
+        AiLabelServiceApp._install_engine_hook(context)
+
+        wrapped = context.modules.importer.engine
+        assert issubclass(wrapped, AiLabelEngineMixin)
+        assert issubclass(wrapped, Foreign)
+        # Ours first, so our load wraps theirs rather than the other way round.
+        assert wrapped.__mro__.index(AiLabelEngineMixin) < wrapped.__mro__.index(Foreign)
+
+    def test_the_gif_engine_is_wrapped_too(self):
+        """With USE_GIFSICLE_ENGINE, GIFs load through a separate slot entirely.
+
+        Hooking only ENGINE left those images unscanned - a gap in every release up
+        to v0.2.0. Wrapping the slot is the fix and is what this asserts; loading a
+        GIF through it needs the gifsicle binary, which CI does not install, so the
+        round trip is not exercised anywhere.
+        """
+        context = real_context()
+        AiLabelServiceApp._install_engine_hook(context)
+        assert issubclass(context.modules.importer.gif_engine, AiLabelEngineMixin)
+
+    def test_a_fresh_per_request_context_gets_the_wrapped_engine(self):
+        """Patching the shared importer is what makes this reach real requests."""
+        context = real_context()
+        AiLabelServiceApp._install_engine_hook(context)
+
+        # Exactly how ContextHandler.initialize builds a request's context.
+        request_context = Context(config=context.config, importer=context.modules.importer)
+        assert isinstance(request_context.modules.engine, AiLabelEngineMixin)
+
+    def test_installing_twice_does_not_double_wrap(self):
+        """A second wrap would run the scan twice on every image."""
+        context = real_context()
+        AiLabelServiceApp._install_engine_hook(context)
+        once = context.modules.importer.engine
+
+        AiLabelServiceApp._install_engine_hook(context)
+
+        assert context.modules.importer.engine is once
+
+    def test_our_own_engine_is_left_alone(self):
+        """ENGINE = "thumbor_ai_label.engine" stays supported and must not be rewrapped."""
+        context = real_context(ENGINE="thumbor_ai_label.engine")
+        before = context.modules.importer.engine
+
+        AiLabelServiceApp._install_engine_hook(context)
+
+        assert context.modules.importer.engine is before
+
+    def test_what_was_wrapped_is_logged(self, caplog):
+        """A wrapped third-party engine looks identical to an unwrapped one."""
+        caplog.set_level("INFO")
+        AiLabelServiceApp._install_engine_hook(real_context())
+        assert any(
+            "engine hook installed on" in r.getMessage() and "thumbor.engines.pil" in r.getMessage()
+            for r in caplog.records
+        )
+
+    def test_having_nothing_to_wrap_is_logged(self, caplog):
+        caplog.set_level("INFO")
+        context = real_context(
+            ENGINE="thumbor_ai_label.engine",
+            GIF_ENGINE="thumbor_ai_label.engine",
+        )
+        AiLabelServiceApp._install_engine_hook(context)
+        assert any("already present" in r.getMessage() for r in caplog.records)
+
+    def test_a_context_without_an_importer_is_ignored(self):
+        """Nothing to patch is not an error; it just means no hook."""
+        AiLabelServiceApp._install_engine_hook(FakeContext())
+
+    def test_a_broken_importer_is_reported_but_does_not_stop_boot(self, caplog):
+        AiLabelServiceApp._install_engine_hook(BadImporterContext())
+        assert any(
+            "could not install the engine hook" in r.getMessage() and r.levelname == "ERROR"
+            for r in caplog.records
+        )
+
+    def test_a_broken_importer_is_fatal_under_strict_errors(self):
+        with pytest.raises(TypeError):
+            AiLabelServiceApp._install_engine_hook(BadImporterContext(AI_LABEL_STRICT_ERRORS=True))
 
 
 class TestBootValidation:

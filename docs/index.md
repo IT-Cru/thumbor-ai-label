@@ -21,15 +21,14 @@ exposure, and not removable through URL manipulation.
 
 [Read the full mapping onto Article 50 →](eu-ai-act.md)
 
-## Two config keys
+## One config key
 
 ```python
 APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
-ENGINE = "thumbor_ai_label.engine"
 ```
 
-No URLs change, no services are added, and labelling costs well under a millisecond per
-request.
+No URLs change, no services are added, your `ENGINE` setting is left alone, and labelling
+costs well under a millisecond per request.
 
 [Getting started →](getting-started.md)
 

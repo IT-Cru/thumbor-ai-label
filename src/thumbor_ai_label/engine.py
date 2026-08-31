@@ -10,7 +10,19 @@ Only the scan runs here, because ``load`` is synchronous. Detectors run later in
 the filter, which is async and can therefore accommodate a detector that calls out
 to another system.
 
-If you run an engine other than PIL, build your own::
+Normally nothing here is configured. ``AiLabelServiceApp`` builds the subclass at
+boot from whichever engines are configured, so the hook composes with a custom
+engine rather than displacing it, and covers ``GIF_ENGINE`` as well.
+
+``Engine`` below exists for the one case the app cannot serve: a deployment that
+does not set ``APP_CLASS`` and instead adds ``ai_label()`` to its URL rules by
+hand. That needs a scan without an app to install one::
+
+    ENGINE = "thumbor_ai_label.engine"
+
+Setting it alongside ``APP_CLASS`` is harmless - the app skips a slot that already
+has the mixin. If you run a custom engine *and* the filter-only setup, subclass it
+yourself and point ``ENGINE`` at that::
 
     from thumbor_ai_label.engine import AiLabelEngineMixin
     from my.engine import Engine as Base
@@ -46,4 +58,8 @@ class AiLabelEngineMixin:
 
 
 class Engine(AiLabelEngineMixin, PilEngine):
-    """Thumbor's PIL engine with provenance scanning attached."""
+    """Thumbor's PIL engine with provenance scanning attached.
+
+    For ``ENGINE = "thumbor_ai_label.engine"``. With ``APP_CLASS`` set, the app
+    wraps the configured engine instead and this class is not needed.
+    """

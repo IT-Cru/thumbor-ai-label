@@ -4,7 +4,7 @@
 
 - **Thumbor 7.8+** and **Python 3.10+**
 - Source images in **JPEG, PNG or WebP**. AVIF and HEIC are not yet supported.
-- The bundled engine wraps Thumbor's PIL engine
+- Any engine. The plugin subclasses whichever one you have configured.
 
 ```bash
 pip install thumbor-ai-label
@@ -12,35 +12,39 @@ pip install thumbor-ai-label
 
 ## Minimal configuration
 
-Two keys in `thumbor.conf` are the whole integration:
+One key in `thumbor.conf` is the whole integration:
 
 ```python
 # Labels every image, with no change to any URL.
 APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
-
-# The engine hook is what sees the original bytes; without it nothing is detected.
-ENGINE = "thumbor_ai_label.engine"
 ```
 
-!!! warning "Both keys are required"
-    `APP_CLASS` arranges for every request to be labelled. `ENGINE` is what actually sees
-    the original file — `engine.load()` is the only point in Thumbor's flow that always
-    receives the source bytes, on both the storage-hit and loader paths.
+`APP_CLASS` does two things: it arranges for every request to be labelled, and it installs
+the hook that reads the original bytes. `engine.load()` is the only point in Thumbor's flow
+that always receives the source file — on both the storage-hit and loader paths — so the
+app subclasses whichever engine you have configured, at startup, and logs what it wrapped:
 
-    Set `APP_CLASS` without `ENGINE` and images are served normally, unlabelled, with a
-    warning in the log. That fails safe, but it fails silently to anyone not reading logs.
+```
+[AiLabel] engine hook installed on thumbor.engines.pil.Engine, thumbor.engines.gif.Engine
+```
 
 ## Running a different engine
 
-Compose your own rather than replacing it:
+Nothing to do. Leave `ENGINE` pointing at your engine and the app composes with it:
 
 ```python
-from thumbor_ai_label.engine import AiLabelEngineMixin
-from my.engine import Engine as Base
-
-class Engine(AiLabelEngineMixin, Base):
-    pass
+ENGINE = "my.engine"
+APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
 ```
+
+Both engine slots are covered, so `GIF_ENGINE` is hooked too when
+`USE_GIFSICLE_ENGINE` is on.
+
+!!! note "Upgrading from v0.2.0 or earlier"
+    Those versions required `ENGINE = "thumbor_ai_label.engine"`, which meant the plugin
+    could not coexist with another custom engine. That line still works and can stay —
+    the app skips a slot that already carries the hook — but it is no longer needed, and
+    removing it is what frees the slot for your own engine.
 
 ## Opt-in per URL instead
 
@@ -49,6 +53,19 @@ put `ai_label()` in the URLs that should carry a label:
 
 ```python
 FILTERS = ["thumbor_ai_label.filters.ai_label"]
+ENGINE = "thumbor_ai_label.engine"
+```
+
+`ENGINE` **is** required here. Without `APP_CLASS` there is no app to install the hook, so
+this is the one setup that still names the engine explicitly. Running your own engine as
+well means subclassing it yourself:
+
+```python
+from thumbor_ai_label.engine import AiLabelEngineMixin
+from my.engine import Engine as Base
+
+class Engine(AiLabelEngineMixin, Base):
+    pass
 ```
 
 The trade is that every URL-generating system has to be updated, and a URL that forgets it
