@@ -78,21 +78,27 @@ are not yet supported. The bundled engine wraps Thumbor's PIL engine.
 pip install thumbor-ai-label
 ```
 
-Two keys in `thumbor.conf` are the whole integration:
+One key in `thumbor.conf` is the whole integration:
 
 ```python
 # Labels every image, with no change to any URL.
 APP_CLASS = "thumbor_ai_label.app.AiLabelServiceApp"
-
-# The engine hook is what sees the original bytes; without it nothing is detected.
-ENGINE = "thumbor_ai_label.engine"
 ```
 
-No URLs change, no services are added. Labelling costs well under a millisecond per
-request — the metadata scan never decodes a pixel, and its cost does not grow with image
-size.
+No URLs change, no services are added, and your `ENGINE` setting is left alone — the app
+subclasses whichever engine you have configured, so this composes with a custom engine
+rather than displacing it. Labelling costs well under a millisecond per request — the
+metadata scan never decodes a pixel, and its cost does not grow with image size.
 
-Running an engine other than PIL? Compose your own:
+Prefer opt-in per URL instead? Skip `APP_CLASS`, add `thumbor_ai_label.filters.ai_label`
+to `FILTERS`, and put `ai_label()` in the URLs that should carry a label. That setup has no
+app to install the hook, so it needs the engine set explicitly:
+
+```python
+ENGINE = "thumbor_ai_label.engine"  # only for the filter-only setup
+```
+
+If you run your own engine *and* the filter-only setup, subclass it yourself:
 
 ```python
 from thumbor_ai_label.engine import AiLabelEngineMixin
@@ -102,9 +108,6 @@ from my.engine import Engine as Base
 class Engine(AiLabelEngineMixin, Base):
     pass
 ```
-
-Prefer opt-in per URL instead? Skip `APP_CLASS`, add `thumbor_ai_label.filters.ai_label`
-to `FILTERS`, and put `ai_label()` in the URLs that should carry a label.
 
 ### Verifying it works
 
