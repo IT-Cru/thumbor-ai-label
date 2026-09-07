@@ -239,25 +239,46 @@ environment: `AI_LABEL_DRAW_STATES=ai_generated,ai_manipulated` is read as a
 comma-separated list, which `AI_LABEL_ICONS` cannot be. `AI_LABEL_ICON_DIR` and
 `AI_LABEL_ICON_SET` are the same shape of key for the same reason.
 
-## GIFs on the gifsicle engine
+## GIFs
+
+GIFs need a section of their own, because Thumbor treats them unlike every other format
+and the plugin has to work around it.
+
+### Thumbor skips the phase the label lives in
+
+`BaseHandler.after_transform` guards the whole post-transform filter phase:
+
+```python
+if self.context.request.extension != ".gif" or self.context.config.USE_GIFSICLE_ENGINE is None:
+    await self.filters_runner.apply_filters(thumbor.filters.PHASE_POST_TRANSFORM)
+```
+
+That reads `is None`, and `USE_GIFSICLE_ENGINE` **defaults to `False`** — so the guard is
+false for *every* GIF whether or not gifsicle is enabled, and no post-transform filter
+runs at all. `ai_label` is a post-transform filter, so for a long time **no GIF carried a
+label and no GIF got a verdict**, on any engine.
+
+The handler now does both itself for exactly those requests: it computes the verdict
+before the response is assembled, and draws the label directly. **Only this label** — not
+the rest of the phase. Turning `apply_filters` on for GIFs would silently start applying
+every other post-transform filter to them, and a URL's `filters:blur()` would begin
+working where it never has. That is not this plugin's decision to make.
+
+Every frame of an animation is labelled, not just the first. An animated GIF is read back
+through `frame_engines()`, so a mark composited onto the top-level image alone is
+discarded and the output carries nothing.
+
+### `USE_GIFSICLE_ENGINE = True` means no visible mark
 
 `USE_GIFSICLE_ENGINE = True` swaps Thumbor's PIL engine for one that shells out to the
 `gifsicle` binary and holds **no image in memory at all** — `thumbor.engines.gif.Engine`
 sets `image` to `""` and delegates every operation to the binary. There is nothing to
-composite a label onto.
+composite a label onto, so on that engine a GIF carries no visible mark however the rest
+of this page is configured.
 
-**So GIFs served that way carry no visible mark, whatever the rest of this page says.**
-Detection still runs — the engine hook sees the original bytes on both engine slots — so
-the verdict is computed, published and correct. Only the drawing is impossible:
-
-```json
-{"label": "ai_generated", "reason": "ai_asserted", "labelled": false,
- "disclosure": "AI generated"}
-```
-
-`labelled: false` here means what it means everywhere else: **the `/meta/` disclosure is
-the only one that image carries.** A CMS reading the field already knows to write the alt
-text.
+Detection still runs, and the verdict is still published with `"labelled": false` — which
+means what it means everywhere else: **the `/meta/` disclosure is the only one that image
+carries.** A CMS reading the field already knows to write the alt text.
 
 This is reported once per engine in the log rather than on every request, because it is a
 property of the engine and not of the image:
@@ -270,12 +291,30 @@ the only one they carry. …
 
 It is **not** treated as a labelling failure, so `AI_LABEL_STRICT_ERRORS` does not turn it
 into a 500 — the same category as an image below `AI_LABEL_MIN_IMAGE_SIZE`. The engine is
-asked per request, so JPEGs in the same deployment are labelled normally; only the images
-that actually went through the GIF engine are affected.
+asked per request, so JPEGs in the same deployment are labelled normally.
 
 Per-frame labelling *through* `gifsicle` would mean decoding, compositing and re-encoding
 outside the binary the engine exists to use. That is a feature rather than a fix, and is
 not implemented.
+
+### Provenance inside a GIF is not read yet
+
+The container scanner handles JPEG, PNG and WebP. **It has no GIF walker**, so a GIF
+carrying a `DigitalSourceType` assertion in XMP — GIF89a does support it, in an
+Application Extension — scans to nothing:
+
+```json
+{"label": "unknown", "reason": "inconclusive", "labelled": true,
+ "disclosure": "Image provenance could not be established"}
+```
+
+Under the `strict` default that reaches `unknown`, the fail-closed hedge, so an
+AI-generated GIF is marked rather than passed as clean — but it is marked as *unproven*,
+not as AI, and a photograph in GIF form gets the same treatment. Under `relaxed` a GIF is
+never labelled at all.
+
+If you serve GIFs whose provenance matters, this is the limitation to know about. It is
+tracked separately and is the piece that would make a GIF behave like a JPEG.
 
 ## The meta endpoint
 

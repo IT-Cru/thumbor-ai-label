@@ -7,6 +7,7 @@ the handler put it there - which is the whole claim being tested.
 from __future__ import annotations
 
 import io
+import json
 import pathlib
 import tempfile
 from typing import ClassVar
@@ -22,6 +23,7 @@ from thumbor.importer import Importer
 from tornado.testing import AsyncHTTPTestCase
 
 import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of registering config keys
+from tests.builders import gif
 from thumbor_ai_label.app import AiLabelServiceApp
 
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
@@ -59,6 +61,13 @@ class AlwaysOnCase(AsyncHTTPTestCase):
         (root / "ai.jpg").write_bytes(source_image("trainedAlgorithmicMedia"))
         (root / "camera.jpg").write_bytes(source_image("digitalCapture"))
         (root / "plain.jpg").write_bytes(source_image())
+        # GIFs go through the PIL engine unless USE_GIFSICLE_ENGINE is on, so these
+        # need no binary. Thumbor skips the post-transform phase for them either way.
+        (root / "ai.gif").write_bytes(gif(term="trainedAlgorithmicMedia", size=(900, 600)))
+        (root / "camera.gif").write_bytes(gif(term="digitalCapture", size=(900, 600)))
+        (root / "animated.gif").write_bytes(
+            gif(term="trainedAlgorithmicMedia", frames=4, size=(900, 600))
+        )
         cls.root = root
 
     @classmethod
@@ -87,6 +96,126 @@ class AlwaysOnCase(AsyncHTTPTestCase):
         response = self.fetch(path)
         assert response.code == 200, f"{path} returned {response.code}"
         return response.body
+
+
+def gif_frames(raw: bytes):
+    """Every frame of a GIF as RGB, so a per-frame comparison is possible."""
+    from PIL import ImageSequence
+
+    return [frame.convert("RGB") for frame in ImageSequence.Iterator(Image.open(io.BytesIO(raw)))]
+
+
+def corner_is_marked(image, fraction: float = 0.4) -> bool:
+    """Whether anything was drawn into the bottom-right corner.
+
+    An absolute check rather than a comparison between two images, because the usual
+    trick - label an AI fixture, leave a camera one alone, diff the corners - cannot
+    work for GIFs yet. The scanner has no GIF walker (#25), so *every* GIF scans
+    empty and reaches `unknown` under the strict default: the camera GIF gets the
+    same mark as the AI one, and the two corners match whether or not anything was
+    drawn. The fixtures are a flat colour, so a corner that is no longer uniform can
+    only have been drawn on.
+    """
+    w, h = image.size
+    corner = image.crop((int(w * (1 - fraction)), int(h * (1 - fraction)), w, h))
+    colours = corner.getcolors(maxcolors=1 << 16)
+    return colours is None or len(colours) > 1
+
+
+class TestGifsAreLabelledToo(AlwaysOnCase):
+    """Until #24 no GIF had ever carried a label, in any release.
+
+    Thumbor skips the whole post-transform phase for a GIF - the guard in
+    `BaseHandler.after_transform` is `extension != ".gif" or USE_GIFSICLE_ENGINE is
+    None`, and that setting defaults to `False`, not `None`. So the always-on filter
+    never fired for a GIF however the plugin was configured, and nothing said so.
+
+    The handler now draws the label itself for exactly the requests whose phase
+    Thumbor skips. On the default PIL engine there is a real image to draw on, so
+    these need no `gifsicle`.
+    """
+
+    def test_a_gif_is_labelled(self):
+        served = gif_frames(self.get("/unsafe/400x300/ai.gif"))
+        assert len(served) == 1
+        assert served[0].size == (400, 300)
+        assert corner_is_marked(served[0])
+
+    def test_the_source_corner_really_is_flat(self):
+        """Otherwise `corner_is_marked` would report a mark on any GIF at all."""
+        source = gif_frames(gif(term="trainedAlgorithmicMedia", size=(900, 600)))
+        assert not corner_is_marked(source[0])
+
+    def test_every_frame_of_an_animation_is_labelled(self):
+        """Drawing on `engine.image` alone would label none of them.
+
+        An animated GIF is read back through `frame_engines()`, so a label pasted on
+        the top-level image is discarded entirely - the output carries nothing. Each
+        frame engine has to be drawn on, which is what `BaseFilter.run` does for a
+        filter that gets to run normally.
+        """
+        labelled = gif_frames(self.get("/unsafe/400x300/animated.gif"))
+
+        assert len(labelled) == 4, "the animation survives intact"
+        assert [index for index, frame in enumerate(labelled) if not corner_is_marked(frame)] == []
+
+    def test_the_gif_is_still_a_gif(self):
+        body = self.get("/unsafe/400x300/ai.gif")
+        assert body.startswith(b"GIF8")
+
+    def test_it_is_drawn_once_even_with_an_explicit_filter_in_the_url(self):
+        """The engine-level guard has to hold on a path Thumbor never runs itself."""
+        implicit = gif_frames(self.get("/unsafe/400x300/ai.gif"))[0]
+        explicit = gif_frames(self.get("/unsafe/400x300/filters:ai_label()/ai.gif"))[0]
+        assert implicit.tobytes() == explicit.tobytes()
+
+
+class TestAGifMetaResponseCarriesAVerdict(AlwaysOnCase):
+    """The ordering half of #24, on the engine that needs no binary.
+
+    This can only pass if the verdict is computed *before* `super().after_transform()`
+    - that call ends in `finish_request()`, which is what assembles the payload. The
+    old code computed it afterwards, so a GIF reported `detection_disabled`: the
+    plugin claiming it had been switched off for an image it had in fact scanned.
+    """
+
+    def verdict(self, image):
+        response = self.fetch(f"/unsafe/meta/400x300/{image}")
+        assert response.code == 200, response.body[:200]
+        return json.loads(response.body)["ai_label"]
+
+    def test_a_gif_reports_a_real_verdict(self):
+        verdict = self.verdict("ai.gif")
+        assert verdict["reason"] == "inconclusive", "examined, nothing found"
+        assert verdict["label"] == "unknown"
+
+    def test_it_is_not_reported_as_disabled(self):
+        assert self.verdict("ai.gif")["reason"] != "detection_disabled"
+
+    def test_a_jpeg_is_unaffected_by_the_reordering(self):
+        """The filter still computes it; the handler just asks first and memoises."""
+        assert self.verdict("ai.jpg")["reason"] == "ai_asserted"
+
+    def test_an_animated_gif_reports_one_verdict_for_the_whole_file(self):
+        assert self.verdict("animated.gif")["reason"] == "inconclusive"
+
+
+class TestGifSuppressionStillApplies(AlwaysOnCase):
+    """Drawing GIFs ourselves must not bypass the config that governs drawing."""
+
+    extra_config: ClassVar[dict] = {"AI_LABEL_DRAW_STATES": []}
+
+    def test_nothing_is_drawn_when_no_state_draws(self):
+        served = gif_frames(self.get("/unsafe/400x300/ai.gif"))
+        assert not corner_is_marked(served[0])
+
+
+class TestDisabledPluginLeavesGifsAlone(AlwaysOnCase):
+    extra_config: ClassVar[dict] = {"AI_LABEL_ENABLED": False}
+
+    def test_nothing_is_drawn(self):
+        served = gif_frames(self.get("/unsafe/400x300/ai.gif"))
+        assert not corner_is_marked(served[0])
 
 
 class TestAlwaysOn(AlwaysOnCase):

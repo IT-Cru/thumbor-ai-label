@@ -7,8 +7,11 @@ a real encoder. Tests against real encoder output live in test_real_images.py.
 
 from __future__ import annotations
 
+import io
 import struct
 import zlib
+
+from PIL import Image
 
 JPEG_XMP_SIG = b"http://ns.adobe.com/xap/1.0/\x00"
 JPEG_XMP_EXT_SIG = b"http://ns.adobe.com/xmp/extension/\x00"
@@ -113,3 +116,58 @@ def build_webp(chunks=()) -> bytes:
     for chunk in chunks:
         body += chunk
     return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
+# -- GIF -----------------------------------------------------------------
+
+CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
+
+#: XMP's GIF serialisation (XMP spec part 3): the Extension Introducer and
+#: Application Extension Label, a block size of 11, then the 8-byte application
+#: identifier "XMP Data" and the 3-byte auth code "XMP".
+XMP_APP_LABEL = b"\x21\xff\x0bXMP DataXMP"
+
+#: The magic trailer that follows the packet: 0x01, then 0xFF down to 0x00, then the
+#: Block Terminator - 258 bytes, matching MAGIC_TRAILER_LEN in Adobe's XMP Toolkit.
+#:
+#: The packet itself is written raw rather than chunked into sub-blocks, so this is
+#: what keeps a GIF reader that knows nothing about XMP from getting lost: walking
+#: length-prefixed sub-blocks through the packet always overshoots into the
+#: descending run, where each byte's value is exactly the distance left to the
+#: terminator, so any landing point funnels to the single 0x00 at the end. The
+#: leading 0x01 covers the one jump that jumps to the trailer's first byte, bouncing
+#: it back into the run.
+#:
+#: Written out properly because #25 will read this file as its reference for the
+#: format - a fixture that is merely close enough to pass would send that walker
+#: after the wrong bytes.
+XMP_MAGIC_TRAILER = b"\x01" + bytes(range(255, -1, -1)) + b"\x00"
+GIF_TRAILER = b"\x3b"
+
+
+def gif(term: str | None = None, frames: int = 1, size=(240, 180)) -> bytes:
+    """A GIF89a, optionally carrying a DigitalSourceType assertion in XMP.
+
+    Each frame is one flat colour, and ``dither=NONE`` is what keeps it that way:
+    the default palette conversion dithers even a uniform fill into a mix of eight
+    web-palette colours. A test asking "was anything drawn here" needs a background
+    that is genuinely uniform, or every corner looks drawn on.
+    """
+    images = [
+        Image.new("RGB", size, (40 + 50 * index, 110, 160)).convert("P", dither=Image.Dither.NONE)
+        for index in range(frames)
+    ]
+    buf = io.BytesIO()
+    images[0].save(buf, "GIF", save_all=True, append_images=images[1:], duration=120, loop=0)
+    raw = buf.getvalue()
+
+    if term is None:
+        return raw
+
+    xmp = (
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description '
+        f'{NS} Iptc4xmpExt:DigitalSourceType="{CV}{term}"/></rdf:RDF></x:xmpmeta>'
+    ).encode()
+    assert raw.endswith(GIF_TRAILER)
+    return raw[: -len(GIF_TRAILER)] + XMP_APP_LABEL + xmp + XMP_MAGIC_TRAILER + GIF_TRAILER

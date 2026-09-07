@@ -603,6 +603,57 @@ class TestFailureContainment:
         assert _strict_errors(Broken()) is False
 
 
+class TestLabellingWhenThumborSkipsThePhase:
+    """`AiLabelImagingHandler` draws GIFs itself, so its guards need direct cover.
+
+    The happy paths run over HTTP in test_always_on.py; these are the corners that
+    layer cannot reach.
+    """
+
+    def handler(self, **request_attrs):
+        from thumbor_ai_label.handler import AiLabelImagingHandler
+
+        context = build_context()
+        context.request = type("Req", (), {"meta": False, **request_attrs})()
+        instance = object.__new__(AiLabelImagingHandler)
+        instance.context = context
+        return instance
+
+    def test_a_request_with_no_engine_is_left_alone(self):
+        """Nothing to draw on is not an error; `_cleanup` nulls this attribute."""
+        instance = self.handler(extension=".gif", engine=None)
+        asyncio.run(instance._label_if_thumbor_skips_the_phase())  # must not raise
+
+    def test_a_jpeg_is_not_touched_here(self):
+        """Thumbor runs the phase itself for anything but a GIF."""
+        instance = self.handler(extension=".jpg", engine=object())
+        assert instance._thumbor_skips_post_transform() is False
+
+    def test_a_gif_is(self):
+        instance = self.handler(extension=".gif", engine=object())
+        assert instance._thumbor_skips_post_transform() is True
+
+    def test_an_engine_with_no_pil_image_is_never_asked_for_its_frames(self):
+        """The hazard #19 flagged, and why `can_draw_on` is checked first.
+
+        `thumbor.engines.gif.Engine` reports `is_multiple()` as `frame_count > 1`
+        but never sets `multiple_engine`, so asking it for `frame_engines()` raises.
+        """
+        from thumbor_ai_label.handler import AiLabelImagingHandler
+
+        class GifsicleLike:
+            image = ""
+
+            def is_multiple(self):
+                return True
+
+            def frame_engines(self):
+                raise AssertionError("frame_engines must not be reached")
+
+        engine = GifsicleLike()
+        assert AiLabelImagingHandler._drawable_engines(engine) == [engine]
+
+
 class TestPackaging:
     def test_version_is_valid_pep440(self):
         from packaging.version import Version
