@@ -41,6 +41,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # thumbor.engines.gif shells out to this for every operation, so without it
+      # tests/test_gif_engine.py skips and the GIF path goes unexercised - which is
+      # how the v0.3.0 GIF_ENGINE fix shipped with its round trip untested.
+      - name: Install gifsicle
+        run: sudo apt-get update && sudo apt-get install -y gifsicle
+
       - name: Install
         run: python -m pip install --upgrade pip && pip install -e '.[dev,thumbor]'
 
