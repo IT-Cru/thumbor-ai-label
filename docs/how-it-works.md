@@ -198,6 +198,31 @@ Thumbor handler code is copied, so there is little to break on a Thumbor upgrade
 filter, so a URL cannot blur, desaturate or overlay it away. A test pins this by requesting
 `filters:blur(12)` and asserting the label survives.
 
+### GIFs never reach the filter at all
+
+`BaseHandler.after_transform` guards the post-transform phase with `extension != ".gif" or
+USE_GIFSICLE_ENGINE is None`. That setting defaults to `False`, not `None`, so the guard is
+false for **every** GIF on **every** engine and the phase is skipped outright — the label
+filter included.
+
+So for those requests the handler does the work itself, before calling `super()`: it
+computes the verdict, then draws the label. **Only this label**, never `apply_filters` —
+running the phase would silently enable every other post-transform filter for GIFs, and
+that is Thumbor's decision rather than this plugin's.
+
+Both steps run *before* `super().after_transform()`, because that call ends in
+`finish_request()`, which is what assembles and sends the response. A verdict computed
+afterwards would arrive after the payload it belongs in — which is exactly the bug that
+made GIFs report `detection_disabled`.
+
+Animated GIFs are read back through `frame_engines()`, so each frame engine is drawn on in
+turn. A label composited onto the top-level image alone is discarded, and the output
+carries nothing at all. The `drawn` marker lives on the engine rather than the request for
+this reason: each frame has its own engine, so each frame is labelled exactly once.
+
+If Thumbor ever stops skipping the phase, the drift is safe in the direction that matters —
+its filter run finds the engine already marked and does not draw a second time.
+
 An explicit `ai_label()` in a URL works alongside always-on and does not double draw.
 
 ### Boot-time validation

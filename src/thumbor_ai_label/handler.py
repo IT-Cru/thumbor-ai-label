@@ -15,9 +15,10 @@ from thumbor.handlers.imaging import ImagingHandler
 from thumbor.utils import logger
 
 from . import meta
+from .compose import can_draw_on
 from .filters.ai_label import Filter as AiLabelFilter
+from .label import apply as apply_label
 from .label import decide_for_request
-from .state import get_decision
 
 
 class AlwaysOnFiltersFactory:
@@ -70,19 +71,103 @@ class AiLabelImagingHandler(ImagingHandler):
         self.context.filters_factory = AlwaysOnFiltersFactory(self.context.filters_factory)
 
     async def after_transform(self):
+        # Both steps run before super(), not after. ``BaseHandler.after_transform``
+        # ends in ``finish_request()``, which assembles and sends the response - so
+        # anything done afterwards arrives after the payload it belongs in.
+        await self._ensure_verdict()
+        await self._label_if_thumbor_skips_the_phase()
         await super().after_transform()
 
-        # Safety net for the meta payload. The label filter normally computes the
-        # verdict, but _load_results runs in a worker thread and cannot await, so it
-        # has to already exist by then. decide_for_request is memoised, making this
-        # free in the normal case.
+    def _thumbor_skips_post_transform(self) -> bool:
+        """Whether Thumbor is about to skip the phase the label filter lives in.
+
+        ``BaseHandler.after_transform`` guards ``apply_filters(PHASE_POST_TRANSFORM)``
+        with ``extension != ".gif" or USE_GIFSICLE_ENGINE is None``. That setting
+        defaults to ``False``, not ``None``, so the guard is false for **every** GIF
+        on **every** engine and no post-transform filter runs at all - which is why
+        no GIF has ever carried a label.
+
+        Mirrored rather than imported because Thumbor exposes no hook for it. If
+        Thumbor ever stops skipping the phase for GIFs, nothing here draws twice -
+        its filter run finds the engine already marked - but this pre-draw should be
+        deleted rather than left in place, because a label drawn *before* the phase
+        can be blurred away by another filter in it, and being drawn last is the
+        whole point of appending the filter.
+        """
         request = getattr(self.context, "request", None)
-        if getattr(request, "meta", False) and get_decision(self.context) is None:
-            try:
-                await decide_for_request(self.context)
-            except Exception:  # noqa: BLE001
-                # A missing verdict belongs in the payload, not raised at a client.
-                logger.exception("[AiLabel] could not evaluate provenance for /meta/")
+        return (
+            getattr(request, "extension", None) == ".gif"
+            and self.context.config.USE_GIFSICLE_ENGINE is not None
+        )
+
+    async def _label_if_thumbor_skips_the_phase(self):
+        """Draw the label ourselves for a request whose filters Thumbor skips.
+
+        Only *this* label, never the whole phase. Running ``apply_filters`` here
+        would silently turn on every other post-transform filter for GIFs - a URL's
+        ``filters:blur()`` would start applying where it never has - and that is not
+        this plugin's decision to make.
+        """
+        if not self._thumbor_skips_post_transform():
+            return
+
+        request = getattr(self.context, "request", None)
+        if getattr(request, "meta", False):
+            # A /meta/ response is JSON; there are no pixels to mark. ``draw`` says
+            # the same and would no-op, but stopping here keeps the frame walk off
+            # the JSONEngine wrapping the real one.
+            return
+
+        engine = getattr(request, "engine", None)
+        if engine is None:
+            return
+
+        for target in self._drawable_engines(engine):
+            await apply_label(self.context, target)
+
+    @staticmethod
+    def _drawable_engines(engine):
+        """Every engine that contributes pixels to the output.
+
+        An animated GIF is read back through ``frame_engines()``, so a label pasted
+        onto ``engine.image`` alone is thrown away - the output carries nothing at
+        all. ``BaseFilter.run`` handles this for a filter that runs normally; this
+        does the same for the one that never gets to.
+
+        ``can_draw_on`` is checked first, and not only as an optimisation.
+        ``thumbor.engines.gif.Engine`` reports ``is_multiple()`` as
+        ``frame_count > 1`` but never sets ``multiple_engine``, which only the PIL
+        path assigns - so asking it for ``frame_engines()`` would raise. It has no
+        PIL image to draw on either way, and ``label.apply`` says so once.
+        """
+        if can_draw_on(engine) and engine.is_multiple():
+            return engine.frame_engines()
+        return [engine]
+
+    async def _ensure_verdict(self):
+        """Make sure a /meta/ response has a verdict to report.
+
+        ``_load_results`` runs in Thumbor's worker thread and cannot await, so the
+        verdict has to exist before the response is assembled. ``decide_for_request``
+        is memoised, so this costs nothing when the label filter already ran.
+
+        For a **GIF this is the only place a verdict is produced at all.**
+        ``BaseHandler.after_transform`` guards the whole post-transform phase with
+        ``extension != ".gif" or USE_GIFSICLE_ENGINE is None``, and that setting
+        defaults to ``False`` rather than ``None`` - so for any GIF, on any engine,
+        no post-transform filter runs and the label filter never fires.
+        """
+        request = getattr(self.context, "request", None)
+        if not getattr(request, "meta", False):
+            return
+
+        try:
+            # Memoised: when the label filter has already run - every request kind
+            # but a GIF - this hands back the verdict it stored and does no work.
+            await decide_for_request(self.context)
+        except Exception:  # noqa: BLE001
+            # A missing verdict belongs in the payload, not raised at a client.
+            logger.exception("[AiLabel] could not evaluate provenance for /meta/")
 
     def _load_results(self, context):
         results, content_type = super()._load_results(context)

@@ -107,13 +107,21 @@ This is a property of the deployment, not a gap in the plugin, and it does not a
 Article 50(4) position. The plugin is deliberately **read-only**: it reads metadata to
 decide which label to show, and never writes.
 
-**`USE_GIFSICLE_ENGINE` leaves GIFs without a visible mark.** That engine holds no image
-in memory, so nothing can be composited onto it. The verdict is still detected and still
-published on `/meta/` with `"labelled": false`, so the 50(5) accessible disclosure is
-intact — but for those images it is the *only* disclosure, and the 50(4) visible one is
-absent. If you serve AI-generated GIFs, either turn the setting off or make the mark part
-of the surrounding page. See
-[GIFs on the gifsicle engine](configuration.md#gifs-on-the-gifsicle-engine).
+**GIFs are a weaker case than other formats.** Two separate limits apply, and both matter
+for an AI-generated GIF:
+
+- **Provenance inside a GIF is not read.** The scanner covers JPEG, PNG and WebP. A GIF
+  carrying a `DigitalSourceType` assertion scans to nothing, so under the `strict` default
+  it is marked `unknown` — a visible mark and a disclosure, but phrased as unproven rather
+  than as AI, which is the honest reading of what was established.
+- **`USE_GIFSICLE_ENGINE` leaves GIFs without a visible mark at all.** That engine holds no
+  image in memory, so nothing can be composited onto it. The verdict is still published on
+  `/meta/` with `"labelled": false`, so the 50(5) accessible disclosure is intact — but for
+  those images it is the *only* disclosure, and the 50(4) visible one is absent. Either turn
+  the setting off or make the mark part of the surrounding page.
+
+On the default PIL engine GIFs are labelled, every frame of an animation included. See
+[GIFs](configuration.md#gifs).
 
 **Result storage caches labelled derivatives.** A policy change will not reach
 already-cached images without invalidation.

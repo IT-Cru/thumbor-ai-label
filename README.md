@@ -430,11 +430,17 @@ reads metadata to decide which label to show, and never writes.
 screen reader, and Thumbor does not control the surrounding HTML. The plugin closes its
 half by publishing the verdict on `/meta/`; something has to read it and write the markup.
 
+**GIF provenance is not read.** The container scanner handles JPEG, PNG and WebP; it has
+no GIF walker, so a GIF carrying a `DigitalSourceType` assertion scans to nothing. Under
+the `strict` default that reaches `unknown` — marked, but as unproven rather than as AI,
+and a photograph in GIF form gets the same treatment.
+
 **`USE_GIFSICLE_ENGINE` means GIFs get no visible mark.** Thumbor's gifsicle engine holds
 no image in memory — it delegates every operation to the binary — so there is nothing to
 composite a label onto. Detection still runs and the verdict is still published, with
 `"labelled": false`, which makes the `/meta/` disclosure the only one those images carry.
-It is logged once per engine rather than per request, and is not treated as a failure.
+It is logged once per engine rather than per request, and is not treated as a failure. On
+the default PIL engine GIFs *are* labelled, every frame of an animation included.
 
 **Result storage caches labelled derivatives.** A policy change will not reach
 already-cached images without invalidation.
