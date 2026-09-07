@@ -57,6 +57,26 @@ class Layout:
             raise ValueError(f"min_size must be positive, got {self.min_size}")
 
 
+def can_draw_on(engine) -> bool:
+    """Whether ``engine`` holds something a label can be composited onto.
+
+    The single predicate, asked by the draw path and by the /meta/ endpoint, so what
+    the pixels carry and what ``labelled`` reports cannot drift - the same rule
+    ``Settings.draws()`` follows for states configured out of marking.
+
+    Not every Thumbor engine keeps a PIL image. ``thumbor.engines.gif.Engine.load``
+    sets ``image`` to ``""`` and delegates every operation to the ``gifsicle``
+    binary, so a GIF served with ``USE_GIFSICLE_ENGINE`` has nothing to draw on.
+    Asking the engine rather than reading that config key is what keeps the answer
+    per-request: the same deployment serves JPEGs through PIL, and those do get a
+    mark.
+
+    A /meta/ request asks this of Thumbor's ``JSONEngine``, whose ``image`` mirrors
+    the engine it wraps, so both request kinds reach the same answer.
+    """
+    return isinstance(getattr(engine, "image", None), Image.Image)
+
+
 def label_margin(image_size: tuple[int, int], layout: Layout) -> int:
     shorter = min(image_size)
     return max(layout.min_margin, round(shorter * layout.margin_ratio))

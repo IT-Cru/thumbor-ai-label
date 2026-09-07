@@ -62,9 +62,9 @@ def make_jpeg(term=None, software=None, size=(600, 400), colour=(90, 120, 160)) 
 
 
 def build_context(**overrides) -> Context:
+    overrides.setdefault("ENGINE", "thumbor_ai_label.engine")
     config = Config(
         SECURITY_KEY="test-key",
-        ENGINE="thumbor_ai_label.engine",
         **overrides,
     )
     importer = Importer(config)
@@ -211,6 +211,125 @@ class TestDrawing:
                 AI_LABEL_ICONS={"ai_generated": "/nonexistent/icon.png"},
                 AI_LABEL_STRICT_ERRORS=True,
             )
+
+
+class TestAnEngineThatHoldsNoPilImage:
+    """Some engines have no pixels to composite onto, and must fail honestly.
+
+    `thumbor.engines.gif.Engine.load` sets `image = ""` and delegates every operation
+    to the `gifsicle` binary, so with `USE_GIFSICLE_ENGINE` a GIF cannot carry a mark
+    at all. The old guard tested `is None`, which an empty string is not, so the draw
+    went ahead and raised inside PIL - a logged traceback per request by default and a
+    500 on every GIF under `AI_LABEL_STRICT_ERRORS`.
+
+    tests.headless_engine stands in for the gif engine, so none of this needs the
+    binary CI does not install.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _forget_previous_warnings(self):
+        """The warning is said once per process, so a test must not inherit one."""
+        from thumbor_ai_label import label as label_module
+
+        label_module._warned_engines.clear()
+        yield
+        label_module._warned_engines.clear()
+
+    def headless(self, **config):
+        """A request context whose engine holds no PIL image, wrapped as in production.
+
+        The app subclasses the configured engine rather than replacing it, and the
+        scan lives in that subclass - so going through `_install_engine_hook` is what
+        makes the verdict real here rather than assumed.
+        """
+        from thumbor_ai_label.app import AiLabelServiceApp
+
+        boot = build_context(ENGINE="tests.headless_engine", **config)
+        AiLabelServiceApp._install_engine_hook(boot)
+        context = Context(config=boot.config, importer=boot.modules.importer)
+
+        engine = context.modules.engine
+        engine.load(make_jpeg(term="trainedAlgorithmicMedia"), ".jpg")
+        assert engine.image == "", "the stand-in must be shaped like the gif engine"
+        return context, engine
+
+    def run_filter(self, **config):
+        context, engine = self.headless(**config)
+        return engine, asyncio.run(apply(context, engine))
+
+    def test_nothing_is_drawn_and_no_traceback_is_logged(self, caplog):
+        """The old guard let the draw run and PIL raised; `apply` swallowed it.
+
+        Logged at error level with a traceback, that read as a plugin fault rather
+        than as an engine that was never going to work.
+        """
+        caplog.set_level("WARNING")
+        engine, drawn = self.run_filter()
+
+        assert drawn is False
+        assert engine.image == "", "the engine is handed back untouched"
+        assert not [r for r in caplog.records if r.levelname == "ERROR" or r.exc_info]
+
+    def test_the_verdict_still_stands(self):
+        """Only the drawing is impossible; detection ran on the original bytes."""
+        context, _ = self.headless()
+        decision = asyncio.run(decide_for_request(context))
+        assert decision.state is SourceType.AI_GENERATED
+        assert decision.reason is Reason.AI_ASSERTED
+
+    def test_strict_errors_does_not_turn_this_into_a_500(self):
+        """An engine that cannot carry a mark is a limitation, not a failure.
+
+        `AI_LABEL_STRICT_ERRORS` is for labelling that went wrong - a bad icon path.
+        This is the same category as `AI_LABEL_MIN_IMAGE_SIZE` and a state left out of
+        `AI_LABEL_DRAW_STATES`: no mark, honestly reported, delivery unaffected.
+        """
+        _, drawn = self.run_filter(AI_LABEL_STRICT_ERRORS=True)
+        assert drawn is False
+
+    def test_the_warning_names_the_engine_and_says_what_it_costs(self, caplog):
+        """An operator has to be able to act on this, so it is not a traceback."""
+        caplog.set_level("WARNING")
+        self.run_filter()
+
+        (record,) = [r for r in caplog.records if "[AiLabel]" in r.getMessage()]
+        message = record.getMessage()
+        assert "tests.headless_engine.Engine" in message, "which engine"
+        assert "no visible label can be drawn" in message, "what is lost"
+        assert "labelled: false" in message, "where the disclosure goes instead"
+        assert "USE_GIFSICLE_ENGINE" in message, "the usual cause, named"
+
+    def test_gifsicle_is_offered_as_the_usual_cause_not_as_the_diagnosis(self, caplog):
+        """Any engine holding no PIL image lands here, not only the gif one.
+
+        `can_draw_on` asks a question about PIL, so a video engine reaches this too -
+        and sending its operator after `USE_GIFSICLE_ENGINE` would be the wrong
+        setting. The engine in play is the subject; gifsicle is only the usual cause.
+        """
+        caplog.set_level("WARNING")
+        self.run_filter()
+
+        message = caplog.records[-1].getMessage()
+        assert message.startswith("[AiLabel] tests.headless_engine.Engine holds no PIL image")
+        assert "is the usual way to reach this" in message
+        assert "any engine that keeps no PIL image does" in message
+
+    def test_the_wrapper_subclass_is_not_what_gets_named(self):
+        """Every engine the app wraps is called `AiLabelEngine`; that identifies none."""
+        from thumbor_ai_label.label import _engine_name
+
+        _, engine = self.headless()
+        assert type(engine).__name__ == "AiLabelEngine", "the generated subclass"
+        assert _engine_name(engine) == "tests.headless_engine.Engine"
+
+    def test_it_is_said_once_rather_than_per_request(self, caplog):
+        """Logging per request is the noise this replaces, not the fix."""
+        caplog.set_level("WARNING")
+        self.run_filter()
+        self.run_filter()
+        self.run_filter()
+
+        assert len([r for r in caplog.records if "[AiLabel]" in r.getMessage()]) == 1
 
 
 class TestDrawStates:

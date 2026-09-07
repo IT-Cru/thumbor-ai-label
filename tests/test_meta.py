@@ -146,6 +146,96 @@ class TestSuppressedStateIsStillReported(MetaCase):
         assert self.verdict(AI)["labelled"] is True
 
 
+class TestAnEngineThatCannotDraw(MetaCase):
+    """`labelled` must reflect an engine that has no pixels to mark.
+
+    Thumbor's gifsicle engine holds no PIL image, so a GIF served with
+    `USE_GIFSICLE_ENGINE` carries no mark however the plugin is configured. Deciding
+    `labelled` from geometry and config alone answered `true` for those images, and a
+    CMS reading that field writes neither the visible disclosure nor the accessible
+    one - the exact failure #13 rejected the transparent-icon trick over.
+
+    tests.headless_engine is shaped like the gif engine, so this needs no `gifsicle`.
+    """
+
+    extra_config: ClassVar[dict] = {"ENGINE": "tests.headless_engine"}
+
+    def test_labelled_is_false_because_the_engine_cannot_carry_it(self):
+        assert self.verdict(AI)["labelled"] is False
+
+    def test_the_verdict_and_disclosure_still_stand(self):
+        """Detection ran on the original bytes; only the drawing is impossible.
+
+        The DOM disclosure is now the only one this image has, so it had better be
+        there - and `labelled: false` is what tells a consumer to write it.
+        """
+        verdict = self.verdict(AI)
+        assert verdict["label"] == "ai_generated"
+        assert verdict["reason"] == "ai_asserted"
+        assert verdict["disclosure"] == "AI generated"
+
+    def test_the_image_request_agrees_and_is_still_served(self):
+        """The half that makes `labelled: false` true rather than merely cautious.
+
+        `_would_draw` answers a hypothetical about an *image* request from inside a
+        *meta* request, so the two must select the same engine. Thumbor picks it in
+        `_fetch` from the source mime type, with no meta-specific branch; this pins
+        that rather than asserting it in a comment.
+        """
+        response = self.fetch(f"/unsafe/600x400/{AI}")
+        assert response.code == 200, "an unmarkable engine is not a 500"
+        assert response.body, "and the image is still delivered"
+
+
+class TestAPilEngineIsUnaffected(MetaCase):
+    """The engine is asked per request, so the same deployment can still mark JPEGs.
+
+    Deriving the answer from `USE_GIFSICLE_ENGINE` would have reported `labelled:
+    false` here - a new lie in the opposite direction, about images that really do
+    carry the mark.
+    """
+
+    extra_config: ClassVar[dict] = {"USE_GIFSICLE_ENGINE": True}
+
+    def test_a_jpeg_still_reports_labelled(self):
+        assert self.verdict(AI)["labelled"] is True
+
+
+class TestTheEngineQuestionReachesThroughJsonEngine:
+    """A meta request asks `can_draw_on` of a `JSONEngine`, not of the real engine.
+
+    `JSONEngine.refresh_image` mirrors `self.engine.image`, so the wrapper answers
+    for what it wraps. If that ever stopped being true, `labelled` would go back to
+    describing the wrong object - hence a test against the real class.
+    """
+
+    def wrapped(self, image=None):
+        """A JSONEngine over a loaded PIL engine, with its image optionally replaced."""
+        from thumbor.engines.json_engine import JSONEngine
+
+        config = Config(SECURITY_KEY="k")
+        importer = Importer(config)
+        importer.import_modules()
+        context = Context(config=config, importer=importer)
+
+        real = context.modules.engine
+        real.load((IMAGES / AI).read_bytes(), ".jpg")
+        if image is not None:
+            real.image = image
+        return JSONEngine(real, "some/url")
+
+    def test_it_answers_true_for_a_wrapped_pil_engine(self):
+        from thumbor_ai_label.compose import can_draw_on
+
+        assert can_draw_on(self.wrapped()) is True
+
+    def test_it_answers_false_for_a_wrapped_gifsicle_engine(self):
+        """`""` is exactly what `thumbor.engines.gif.Engine.load` leaves behind."""
+        from thumbor_ai_label.compose import can_draw_on
+
+        assert can_draw_on(self.wrapped("")) is False
+
+
 class TestVerbosity(MetaCase):
     def test_evidence_is_withheld_by_default(self):
         """Evidence can hold a generation-prompt fragment; this endpoint is public."""

@@ -107,6 +107,14 @@ This is a property of the deployment, not a gap in the plugin, and it does not a
 Article 50(4) position. The plugin is deliberately **read-only**: it reads metadata to
 decide which label to show, and never writes.
 
+**`USE_GIFSICLE_ENGINE` leaves GIFs without a visible mark.** That engine holds no image
+in memory, so nothing can be composited onto it. The verdict is still detected and still
+published on `/meta/` with `"labelled": false`, so the 50(5) accessible disclosure is
+intact — but for those images it is the *only* disclosure, and the 50(4) visible one is
+absent. If you serve AI-generated GIFs, either turn the setting off or make the mark part
+of the surrounding page. See
+[GIFs on the gifsicle engine](configuration.md#gifs-on-the-gifsicle-engine).
+
 **Result storage caches labelled derivatives.** A policy change will not reach
 already-cached images without invalidation.
 

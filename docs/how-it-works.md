@@ -169,6 +169,24 @@ itself a thing that can fail — a bad icon path is the obvious case — and rea
 through it would mean broken icon config silently disabled the very setting meant to make
 broken config fatal.
 
+### Engines that cannot be drawn on
+
+Not every Thumbor engine keeps a PIL image. `thumbor.engines.gif.Engine` sets `image` to
+`""` and delegates everything to the `gifsicle` binary, so a GIF served with
+`USE_GIFSICLE_ENGINE` has no pixels to composite onto.
+
+That is a **limitation, not a failure**: nothing went wrong, the mark was simply never
+possible. So it does not raise under `AI_LABEL_STRICT_ERRORS`, and it is logged once per
+engine rather than once per request — the same treatment as an image below
+`AI_LABEL_MIN_IMAGE_SIZE`.
+
+`can_draw_on(engine)` is the single predicate deciding this, asked by the draw path and by
+`/meta/`, so `labelled` cannot claim a mark the pixels do not carry. It asks the request's
+**engine**, not `USE_GIFSICLE_ENGINE`: that key says the gif engine is *available*, not
+that this request used it, and the JPEGs the same deployment serves really are labelled.
+This follows `Settings.draws()`, which answers the config half of the same question for
+both call sites.
+
 ## Always-on
 
 Thumbor has no native "always run this filter" hook, so the plugin supplies one by wrapping
