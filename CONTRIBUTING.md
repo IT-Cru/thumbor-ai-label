@@ -151,6 +151,13 @@ re-run `fetch_eu_icons.py` to copy it across.
 **`tests/images/real/` is not generated** and is not covered by the row above: those are
 contributed files from real AI tools. Editing one destroys the only reason it exists.
 
+**`tests/test_gif_engine.py` skips without `gifsicle`.** Thumbor's GIF engine shells out
+to that binary for every operation, so the whole module is `skipif`-guarded on
+`shutil.which("gifsicle")` — a local run without it reports *skipped*, not passed, and
+the GIF path is simply not exercised. CI installs it (`.github/workflows/ci.yml`);
+install it locally with `brew install gifsicle` or `apt-get install gifsicle` before
+touching anything on that path.
+
 **`scan/` and `detect/` must not import Thumbor.** They are deliberately standalone so
 they can be tested and reused without Thumbor's dependency pins. Only `engine.py`,
 `handler.py`, `app.py`, `config.py`, `meta.py` and `filters/` may import it.

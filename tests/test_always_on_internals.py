@@ -84,9 +84,9 @@ class TestEngineHookInstall:
         """With USE_GIFSICLE_ENGINE, GIFs load through a separate slot entirely.
 
         Hooking only ENGINE left those images unscanned - a gap in every release up
-        to v0.2.0. Wrapping the slot is the fix and is what this asserts; loading a
-        GIF through it needs the gifsicle binary, which CI does not install, so the
-        round trip is not exercised anywhere.
+        to v0.2.0. Wrapping the slot is the fix and is what this asserts. Loading a
+        real GIF through it needs the gifsicle binary and lives in
+        tests/test_gif_engine.py, which skips when the binary is absent.
         """
         context = real_context()
         AiLabelServiceApp._install_engine_hook(context)
