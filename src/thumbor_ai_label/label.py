@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from thumbor.utils import logger
 
-from .compose import apply_label
+from .compose import apply_label, can_draw_on
 from .config import get_settings
 from .detect import run_detectors
 from .policy import Decision, Reason, decide
@@ -75,13 +75,12 @@ def draw(context, engine, decision: Decision) -> bool:
         # this point is Thumbor's JSONEngine wrapping the real one.
         return False
 
-    image = getattr(engine, "image", None)
-    if image is None:
-        logger.warning("[AiLabel] engine %r exposes no PIL image; skipping", type(engine).__name__)
+    if not can_draw_on(engine):
+        _warn_cannot_draw(engine)
         return False
 
     labelled, drawn = apply_label(
-        image,
+        engine.image,
         lambda height: settings.icons.get(decision.state, height),
         settings.layout,
     )
@@ -89,6 +88,49 @@ def draw(context, engine, decision: Decision) -> bool:
         engine.image = labelled
         mark_drawn(engine)
     return drawn
+
+
+#: Engines already warned about, by resolved name. Whether an engine holds a PIL
+#: image is a property of the engine type, not of the request, so repeating the
+#: warning on every GIF would bury the one line an operator needs under exactly the
+#: per-request noise this replaces.
+_warned_engines: set[str] = set()
+
+
+def _engine_name(engine) -> str:
+    """The engine an operator configured, not the subclass built on top of it.
+
+    ``AiLabelServiceApp`` wraps whatever sits in ``ENGINE`` and ``GIF_ENGINE`` in a
+    generated subclass, and every one of those is called ``AiLabelEngine`` - naming
+    that would identify nothing. Walking past our own classes reaches the real one;
+    ``object`` is always in the MRO, so there is always something to name.
+    """
+    prefix = f"{__package__}."
+    foreign = [
+        klass
+        for klass in type(engine).__mro__
+        if klass.__module__ != __package__ and not klass.__module__.startswith(prefix)
+    ]
+    return f"{foreign[0].__module__}.{foreign[0].__name__}"
+
+
+def _warn_cannot_draw(engine) -> None:
+    """Say once, per engine, that this one cannot carry a visible mark.
+
+    An operator can act on this; the ``AttributeError`` it replaces read as a fault
+    in the plugin rather than as an engine that was never able to do the job.
+    """
+    name = _engine_name(engine)
+    if name in _warned_engines:
+        return
+    _warned_engines.add(name)
+    logger.warning(
+        "[AiLabel] %s holds no PIL image, so no visible label can be drawn on it; "
+        "/meta/ reports labelled: false for these images and the DOM disclosure is "
+        "the only one they carry. Thumbor's gifsicle engine is one such engine, so "
+        "GIFs go out unmarked while USE_GIFSICLE_ENGINE is on.",
+        name,
+    )
 
 
 async def apply(context, engine) -> bool:

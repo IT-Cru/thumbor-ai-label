@@ -22,7 +22,7 @@ import json
 
 from thumbor.utils import logger
 
-from .compose import fit_label
+from .compose import can_draw_on, fit_label
 from .config import get_settings
 from .detect import SourceType
 from .policy import Decision, Reason
@@ -51,15 +51,26 @@ DEFAULT_DISCLOSURES = {
 def _would_draw(context, decision: Decision, target: tuple[int, int] | None) -> bool | None:
     """Whether an image request at these dimensions would carry a visible label.
 
-    The distinction matters: below the minimum size, or with the state configured out
-    of ``AI_LABEL_DRAW_STATES``, no label is drawn - so the DOM disclosure becomes the
-    *only* disclosure rather than a supplement to it.
+    The distinction matters: below the minimum size, with the state configured out of
+    ``AI_LABEL_DRAW_STATES``, or on an engine that holds no PIL image, no label is
+    drawn - so the DOM disclosure becomes the *only* disclosure rather than a
+    supplement to it. Answering ``true`` in those cases would tell a CMS the pixels
+    already carry the mark, and it would write neither disclosure.
+
+    The engine is asked rather than inferred from config, and it is the *request's*
+    engine: ``USE_GIFSICLE_ENGINE`` says the gif engine is available, not that this
+    request used it, and the JPEGs the same deployment serves really are labelled.
+    Thumbor picks the engine in ``_fetch`` from the source mime type, with no
+    meta-specific branch, so the engine answering here is the one an image request
+    would have used.
     """
     if not decision.should_label or not target:
         return False
     try:
         settings = get_settings(context.config)
         if not settings.draws(decision.state):
+            return False
+        if not can_draw_on(getattr(getattr(context, "request", None), "engine", None)):
             return False
         aspect = settings.icons.aspect(decision.state)
         icon_size = (max(1, round(aspect * 1000)), 1000)

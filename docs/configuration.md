@@ -239,6 +239,44 @@ environment: `AI_LABEL_DRAW_STATES=ai_generated,ai_manipulated` is read as a
 comma-separated list, which `AI_LABEL_ICONS` cannot be. `AI_LABEL_ICON_DIR` and
 `AI_LABEL_ICON_SET` are the same shape of key for the same reason.
 
+## GIFs on the gifsicle engine
+
+`USE_GIFSICLE_ENGINE = True` swaps Thumbor's PIL engine for one that shells out to the
+`gifsicle` binary and holds **no image in memory at all** — `thumbor.engines.gif.Engine`
+sets `image` to `""` and delegates every operation to the binary. There is nothing to
+composite a label onto.
+
+**So GIFs served that way carry no visible mark, whatever the rest of this page says.**
+Detection still runs — the engine hook sees the original bytes on both engine slots — so
+the verdict is computed, published and correct. Only the drawing is impossible:
+
+```json
+{"label": "ai_generated", "reason": "ai_asserted", "labelled": false,
+ "disclosure": "AI generated"}
+```
+
+`labelled: false` here means what it means everywhere else: **the `/meta/` disclosure is
+the only one that image carries.** A CMS reading the field already knows to write the alt
+text.
+
+This is reported once per engine in the log rather than on every request, because it is a
+property of the engine and not of the image:
+
+```text
+WARNING [AiLabel] thumbor.engines.gif.Engine holds no PIL image, so no visible label can
+be drawn on it; /meta/ reports labelled: false for these images and the DOM disclosure is
+the only one they carry. …
+```
+
+It is **not** treated as a labelling failure, so `AI_LABEL_STRICT_ERRORS` does not turn it
+into a 500 — the same category as an image below `AI_LABEL_MIN_IMAGE_SIZE`. The engine is
+asked per request, so JPEGs in the same deployment are labelled normally; only the images
+that actually went through the GIF engine are affected.
+
+Per-frame labelling *through* `gifsicle` would mean decoding, compositing and re-encoding
+outside the binary the engine exists to use. That is a feature rather than a fix, and is
+not implemented.
+
 ## The meta endpoint
 
 The verdict is published on Thumbor's `/meta/` endpoint under a top-level `ai_label` key.
@@ -261,7 +299,14 @@ Article 50(5) accessibility asks for and what a label burnt into pixels cannot p
 **`labelled` is the field that matters.** It says whether an image request at those
 dimensions would actually carry a visible mark. Below `AI_LABEL_MIN_IMAGE_SIZE` nothing is
 drawn, so `{"label": "ai_generated", "labelled": false}` means the image *is* AI but the
-pixels do not say so — and the disclosure you write into the DOM is the **only** one.
+pixels do not say so — and the disclosure you write into the DOM is the **only** one. The
+other two reasons it can be false are a state left out of `AI_LABEL_DRAW_STATES` and an
+engine with no pixels to mark, such as [the gifsicle
+engine](#gifs-on-the-gifsicle-engine).
+
+The field is answered by the same predicates the drawing itself uses — including asking
+the request's own engine — so what the pixels carry and what `/meta/` reports cannot
+drift.
 
 `disclosure` is English by default and overridable per state:
 
