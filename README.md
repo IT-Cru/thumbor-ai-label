@@ -71,8 +71,8 @@ expects deployers to combine automated detection with human oversight.
 
 ## Install
 
-Requires **Thumbor 7.8+** and **Python 3.10+**. Reads JPEG, PNG and WebP; AVIF and HEIC
-are not yet supported. The bundled engine wraps Thumbor's PIL engine.
+Requires **Thumbor 7.8+** and **Python 3.10+**. Reads JPEG, PNG, WebP and GIF; AVIF and
+HEIC are not yet supported. The bundled engine wraps Thumbor's PIL engine.
 
 ```bash
 pip install thumbor-ai-label
@@ -429,11 +429,6 @@ reads metadata to decide which label to show, and never writes.
 **Accessibility needs your CMS to cooperate.** A label burnt into pixels is invisible to a
 screen reader, and Thumbor does not control the surrounding HTML. The plugin closes its
 half by publishing the verdict on `/meta/`; something has to read it and write the markup.
-
-**GIF provenance is not read.** The container scanner handles JPEG, PNG and WebP; it has
-no GIF walker, so a GIF carrying a `DigitalSourceType` assertion scans to nothing. Under
-the `strict` default that reaches `unknown` — marked, but as unproven rather than as AI,
-and a photograph in GIF form gets the same treatment.
 
 **`USE_GIFSICLE_ENGINE` means GIFs get no visible mark.** Thumbor's gifsicle engine holds
 no image in memory — it delegates every operation to the binary — so there is nothing to

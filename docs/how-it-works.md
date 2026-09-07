@@ -54,7 +54,7 @@ pins.
 from thumbor_ai_label.scan import scan
 
 result = scan(buffer)          # bytes, bytearray or memoryview
-result.container               # Container.JPEG | PNG | WEBP | None
+result.container               # Container.JPEG | PNG | WEBP | GIF | None
 result.xmp                     # list[bytes] — XMP packets
 result.exif                    # list[bytes] — starting at the TIFF header
 result.jumbf                   # list[bytes] — reassembled JUMBF boxes
@@ -65,7 +65,9 @@ result.truncated, result.notes # how far the walk got, and why it stopped
 ### Performance
 
 The walk **never decodes a pixel**. JPEG stops at the first scan header; PNG and WebP skip
-image data by length arithmetic.
+image data by length arithmetic. GIF is the awkward one — its blocks carry no declared
+length, so the walk decodes just enough structure to step over each one: a colour table
+sized from a packed field, then a chain of length-prefixed sub-blocks.
 
 | Case | File | Median scan |
 |---|---|---|
@@ -87,6 +89,11 @@ fails the suite rather than quietly slowing things down.
 - **ImageMagick raw profiles** — hex-wrapped XMP/EXIF in PNG `tEXt`/`zTXt`/`iTXt`, common
   in pipelines that have passed through ImageMagick.
 - **PNG metadata after IDAT** — legal, so the walk continues to IEND.
+- **XMP in a GIF** — stored *raw* rather than as sub-blocks, followed by a 258-byte magic
+  trailer whose descending bytes let a GIF reader that has never heard of XMP walk the
+  packet as a sub-block chain and still land on the terminator. The packet is recovered by
+  subtracting that trailer; a writer that chunked it properly instead is detected by the
+  trailer's absence and reassembled, with a note.
 - **Bad PNG CRCs** — not a reason to discard a payload every other tool reads.
 
 ### Safety
@@ -100,8 +107,10 @@ compression bombs; oversized Extended XMP is refused from its declared length be
 anything is allocated. `RawSegment.__repr__` omits payloads, which can carry GPS and
 creator data, so they stay out of logs and tracebacks.
 
-The suite fuzzes roughly 10,500 mutated and truncated inputs across all three containers,
-asserting no exception escapes.
+The suite fuzzes mutated and truncated inputs across every container, asserting no
+exception escapes. GIF earns particular attention there: it is the one format whose walk
+follows decoded structure rather than declared lengths, so a corrupted byte redirects the
+walk instead of merely overshooting it.
 
 ## Detectors
 

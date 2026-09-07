@@ -6,7 +6,7 @@ so a file is never parsed twice no matter how many detectors are enabled.
 
 from __future__ import annotations
 
-from . import jpeg, png, webp
+from . import gif, jpeg, png, webp
 from .types import DEFAULT_LIMITS, Container, ScanLimits, ScanResult
 
 Buffer = bytes | bytearray | memoryview
@@ -19,6 +19,8 @@ def sniff(view: memoryview) -> Container | None:
         return Container.PNG
     if len(view) >= 12 and view[:4] == webp.MAGIC and view[8:12] == webp.FORM:
         return Container.WEBP
+    if len(view) >= 6 and view[:4] == gif.MAGIC:
+        return Container.GIF
     return None
 
 
@@ -46,6 +48,8 @@ def scan(data: Buffer, limits: ScanLimits = DEFAULT_LIMITS) -> ScanResult:
             jpeg.scan_jpeg(view, result, limits)
         elif container is Container.PNG:
             png.scan_png(view, result, limits)
+        elif container is Container.GIF:
+            gif.scan_gif(view, result, limits)
         else:
             webp.scan_webp(view, result, limits)
     except Exception as exc:  # noqa: BLE001

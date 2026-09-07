@@ -41,6 +41,7 @@ import thumbor_ai_label.config  # noqa: F401 - imported for the side effect of r
 from tests.builders import gif
 from thumbor_ai_label.app import AiLabelServiceApp
 from thumbor_ai_label.engine import AiLabelEngineMixin
+from thumbor_ai_label.scan import Container
 from thumbor_ai_label.state import get_scan
 
 GIFSICLE = shutil.which("gifsicle")
@@ -111,29 +112,44 @@ class TestTheHookReachesAGif:
         assert can_draw_on(engine) is False
 
 
-class TestTheScanIsEmptyBecauseGifIsUnsupported:
-    """A GIF is scanned, and nothing comes back: the scanner has no GIF walker.
+class TestTheScanReadsGifProvenance:
+    """A GIF is scanned like any other container now that a walker exists.
 
-    `scan.sniff` knows JPEG, PNG and WebP. A GIF89a carrying a perfectly valid XMP
-    packet yields `container=None` and one note, so no detector can ever fire on a
-    GIF however it was generated.
-
-    Pinned here rather than left implicit: adding a GIF walker should break this
-    test and make its author decide what the new behaviour is.
+    Until #25 `scan.sniff` knew JPEG, PNG and WebP only, so a GIF89a carrying a
+    perfectly valid XMP packet yielded `container=None` and one note - no detector
+    could fire on a GIF however it was generated.
     """
 
-    def test_a_gif_carrying_xmp_scans_to_nothing(self):
+    def scan_of(self, raw: bytes):
         context = build_context()
-        context.modules.gif_engine.load(gif(term="trainedAlgorithmicMedia"), ".gif")
+        context.modules.gif_engine.load(raw, ".gif")
+        return get_scan(context)
 
-        result = get_scan(context)
-        assert result.container is None
+    def test_the_xmp_packet_is_lifted_out(self):
+        result = self.scan_of(gif(term="trainedAlgorithmicMedia"))
+
+        assert result.container is Container.GIF
+        assert result.notes == (), "a clean walk to the trailer"
+        (packet,) = result.xmp
+        assert packet.startswith(b"<x:xmpmeta")
+        assert packet.endswith(b"</x:xmpmeta>"), "the magic trailer is not part of it"
+        assert b"trainedAlgorithmicMedia" in packet
+
+    def test_a_gif_without_xmp_walks_to_the_trailer_and_finds_nothing(self):
+        """Reaching the end cleanly is the assertion: no note means no lost bytes."""
+        result = self.scan_of(gif())
+
+        assert result.container is Container.GIF
         assert result.segments == []
-        assert "unrecognised container" in result.notes
+        assert result.notes == ()
+        assert result.has_any_metadata is False
 
-    def test_the_xmp_really_is_in_the_bytes(self):
-        """Otherwise the test above would pass for the wrong reason."""
-        assert b"DigitalSourceType" in gif(term="trainedAlgorithmicMedia")
+    def test_an_animation_is_walked_past_to_reach_the_metadata(self):
+        """Four frames of LZW data plus a NETSCAPE loop block, all stepped over."""
+        result = self.scan_of(gif(term="trainedAlgorithmicMedia", frames=4))
+
+        assert result.notes == ()
+        assert b"trainedAlgorithmicMedia" in result.xmp[0]
 
 
 class GifOverHttp(AsyncHTTPTestCase):
@@ -194,19 +210,13 @@ class TestGifsAreStillDelivered(GifOverHttp):
         assert Image.open(io.BytesIO(response.body)).n_frames == 4
 
 
-class TestAGifGetsAnHonestVerdict(GifOverHttp):
-    """A GIF is examined, and /meta/ says so - even though no filter ever runs for it.
+class TestAGifGetsARealVerdict(GifOverHttp):
+    """The whole GIF story, end to end, on the engine that cannot draw.
 
-    `BaseHandler.after_transform` guards `apply_filters(PHASE_POST_TRANSFORM)` with
-    `extension != ".gif" or USE_GIFSICLE_ENGINE is None`. `USE_GIFSICLE_ENGINE`
-    defaults to `False`, not `None`, so for **any** GIF on **any** engine the guard is
-    false and no post-transform filter runs - `ai_label` included.
-
-    The verdict is therefore computed in `AiLabelImagingHandler.after_transform`,
-    before `super()` finishes the request. Until #24 that ran *after* `super()`, which
-    ends in `finish_request()`, so the payload was already built and GIFs reported
-    `detection_disabled` - claiming the plugin was switched off for an image it had in
-    fact scanned.
+    Three separate fixes had to land for this to say anything true. #19 stopped
+    `labelled` claiming a mark the gifsicle engine cannot make; #24 computed the
+    verdict at all, since Thumbor skips the phase the label filter lives in for
+    every GIF; #25 read the provenance the file actually carries.
     """
 
     def verdict(self, image="ai.gif"):
@@ -216,33 +226,21 @@ class TestAGifGetsAnHonestVerdict(GifOverHttp):
         assert response.code == 200, response.body[:200]
         return json.loads(response.body)["ai_label"]
 
-    def test_the_scan_is_reported_as_inconclusive_not_disabled(self):
-        """Examined and nothing found - not "never examined".
-
-        `detection_disabled` told a CMS a gap in coverage was a configuration
-        choice. Under the strict default an unreadable image reaches `unknown`,
-        which is this plugin's fail-closed hedge and the honest answer here.
-        """
+    def test_the_assertion_in_the_gif_is_what_gets_reported(self):
         verdict = self.verdict()
-        assert verdict["reason"] == "inconclusive"
-        assert verdict["label"] == "unknown"
+        assert verdict["label"] == "ai_generated"
+        assert verdict["reason"] == "ai_asserted"
 
-    def test_a_disclosure_is_offered_so_the_cms_can_write_one(self):
-        """The DOM disclosure is the only one a GIF carries, so it must be there."""
-        assert "could not be established" in self.verdict()["disclosure"]
+    def test_the_disclosure_matches_the_verdict(self):
+        assert self.verdict()["disclosure"] == "AI generated"
 
-    def test_labelled_is_false_because_nothing_was_drawn(self):
-        """True for the reason #19 established, on the engine this case runs on."""
+    def test_labelled_is_false_because_this_engine_cannot_draw(self):
+        """The verdict is real; the pixels still carry nothing on gifsicle (#19).
+
+        Which is the case `labelled` exists for: a CMS reading `ai_generated` beside
+        `labelled: false` knows the DOM disclosure is the only one this image has.
+        """
         assert self.verdict()["labelled"] is False
 
     def test_an_animated_gif_reports_the_same(self):
-        assert self.verdict("animated.gif")["reason"] == "inconclusive"
-
-    def test_the_verdict_is_still_empty_because_the_scan_is(self):
-        """`unknown`, not `ai_generated`, though the GIF does carry the assertion.
-
-        The scanner has no GIF walker (#25), so the XMP in these fixtures is never
-        read. Fixing that should turn this into `ai_generated` and break this test,
-        which is the point of asserting it.
-        """
-        assert self.verdict()["label"] != "ai_generated"
+        assert self.verdict("animated.gif")["label"] == "ai_generated"

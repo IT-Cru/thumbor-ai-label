@@ -214,6 +214,26 @@ def _png_raw_profile() -> bytes:
     return encode(image, "PNG", pnginfo=info)
 
 
+def _gif_xmp() -> bytes:
+    """XMP as GIF89a stores it: an Application Extension, then the magic trailer.
+
+    Hand-spliced because Pillow will not write it. The packet goes in raw rather
+    than as sub-blocks, followed by 258 bytes - 0x01, then 0xFF down to 0x00, then
+    the Block Terminator - whose descending run lets a GIF reader that knows nothing
+    about XMP walk the packet and still land on the terminator.
+    """
+    image = base_image(0, size=(600, 400), caption="25 GIF expect: AI GENERATED")
+    raw = encode(image.convert("P", dither=Image.Dither.NONE), "GIF")
+
+    packet = xmp_packet("trainedAlgorithmicMedia")
+    magic_trailer = b"\x01" + bytes(range(255, -1, -1)) + b"\x00"
+    block = b"\x21\xff\x0bXMP DataXMP" + packet + magic_trailer
+
+    if not raw.endswith(b"\x3b"):
+        raise ValueError("Pillow did not end the GIF with a trailer; cannot splice XMP")
+    return raw[:-1] + block + b"\x3b"
+
+
 def _contradiction() -> bytes:
     image = base_image(2, caption="18 expect: NO label (XMP wins)")
     return encode(
@@ -464,6 +484,19 @@ CASES: list[Case] = [
             3, "trainedAlgorithmicMedia", "24 dark expect: AI GENERATED", dark=True
         ),
         notes="For checking contrast, and for trying AI_LABEL_ICON_SET = 'eu-white'.",
+    ),
+    Case(
+        file="25-gif-xmp-ai.gif",
+        description="GIF carrying XMP in an Application Extension",
+        strict="ai_generated",
+        relaxed="ai_generated",
+        build=_gif_xmp,
+        notes=(
+            "Thumbor skips the post-transform filter phase for every GIF, so the label is "
+            "drawn by the handler rather than the filter. With USE_GIFSICLE_ENGINE = True "
+            "there is no PIL image to draw on and this carries no visible mark at all - "
+            "the /meta/ verdict is then the only disclosure."
+        ),
     ),
 ]
 

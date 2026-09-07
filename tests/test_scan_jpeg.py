@@ -69,6 +69,20 @@ def test_stops_at_the_scan_header():
     assert result.xmp == [XMP]
 
 
+def test_a_file_that_ends_at_eoi_without_a_scan_stops_cleanly():
+    """No SOS to stop at, so the walk runs to EOI - a thumbnail-only or stripped file.
+
+    Deterministic on purpose: this branch was previously reached only by the random
+    fuzz corpus, so a change in that corpus silently uncovered it.
+    """
+    raw = b"\xff\xd8" + app1_xmp(XMP) + b"\xff\xd9"
+    result = scan(raw)
+
+    assert result.xmp == [XMP]
+    assert result.truncated is False
+    assert result.notes == ()
+
+
 def test_entropy_data_containing_marker_lookalikes_is_never_walked():
     # 0xFFD8 inside entropy data would derail a naive scanner.
     raw = build_jpeg([app1_xmp(XMP)], entropy=b"\xff\x00\xff\xd8\xff\xe1\x00\x04")

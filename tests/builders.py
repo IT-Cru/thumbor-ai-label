@@ -171,3 +171,60 @@ def gif(term: str | None = None, frames: int = 1, size=(240, 180)) -> bytes:
     ).encode()
     assert raw.endswith(GIF_TRAILER)
     return raw[: -len(GIF_TRAILER)] + XMP_APP_LABEL + xmp + XMP_MAGIC_TRAILER + GIF_TRAILER
+
+
+def gif_sub_blocks(data: bytes) -> bytes:
+    """Chunk ``data`` into GIF sub-blocks and terminate the chain."""
+    out = b""
+    for offset in range(0, len(data), 255):
+        piece = data[offset : offset + 255]
+        out += bytes([len(piece)]) + piece
+    return out + b"\x00"
+
+
+def gif_colour_table_len(packed: int) -> int:
+    return 3 * (2 << (packed & 0x07)) if packed & 0x80 else 0
+
+
+def gif_extension(label: int, payload: bytes) -> bytes:
+    """A non-application extension - graphic control, comment, plain text."""
+    return b"\x21" + bytes([label]) + gif_sub_blocks(payload)
+
+
+def gif_app_extension(identifier: bytes, body: bytes) -> bytes:
+    """An Application Extension. ``body`` is written after the identifier verbatim.
+
+    Verbatim because XMP's serialisation is *not* a sub-block chain - pass
+    ``gif_sub_blocks(...)`` explicitly for the extensions that are.
+    """
+    return b"\x21\xff" + bytes([len(identifier)]) + identifier + body
+
+
+def gif_xmp_extension(xmp: bytes, magic_trailer: bool = True) -> bytes:
+    """XMP as the spec stores it: the packet raw, then the magic trailer."""
+    body = xmp + XMP_MAGIC_TRAILER if magic_trailer else gif_sub_blocks(xmp)
+    return gif_app_extension(b"XMP DataXMP", body)
+
+
+def gif_image_block(packed: int = 0x00, data: bytes = b"\x00") -> bytes:
+    """A Table Based Image: descriptor, optional local table, code size, data."""
+    return (
+        b"\x2c"
+        + struct.pack("<HHHH", 0, 0, 4, 4)
+        + bytes([packed])
+        + b"\x00" * gif_colour_table_len(packed)
+        + b"\x08"
+        + gif_sub_blocks(data)
+    )
+
+
+def build_gif(
+    blocks=(), version: bytes = b"89a", packed: int = 0x80, trailer: bool = True
+) -> bytes:
+    """A hand-built GIF, for the structural edge cases PIL will not produce."""
+    out = b"GIF" + version
+    out += struct.pack("<HH", 4, 4) + bytes([packed, 0, 0])
+    out += b"\x00" * gif_colour_table_len(packed)
+    for block in blocks:
+        out += block
+    return out + GIF_TRAILER if trailer else out

@@ -297,24 +297,20 @@ Per-frame labelling *through* `gifsicle` would mean decoding, compositing and re
 outside the binary the engine exists to use. That is a feature rather than a fix, and is
 not implemented.
 
-### Provenance inside a GIF is not read yet
+### Provenance inside a GIF is read
 
-The container scanner handles JPEG, PNG and WebP. **It has no GIF walker**, so a GIF
-carrying a `DigitalSourceType` assertion in XMP — GIF89a does support it, in an
-Application Extension — scans to nothing:
+GIF89a carries XMP in an Application Extension labelled `XMP DataXMP`, and the scanner
+walks it like any other container — so a `DigitalSourceType` assertion in a GIF reaches
+the `iptc` detector exactly as it does from a JPEG:
 
 ```json
-{"label": "unknown", "reason": "inconclusive", "labelled": true,
- "disclosure": "Image provenance could not be established"}
+{"label": "ai_generated", "reason": "ai_asserted", "labelled": true,
+ "disclosure": "AI generated"}
 ```
 
-Under the `strict` default that reaches `unknown`, the fail-closed hedge, so an
-AI-generated GIF is marked rather than passed as clean — but it is marked as *unproven*,
-not as AI, and a photograph in GIF form gets the same treatment. Under `relaxed` a GIF is
-never labelled at all.
-
-If you serve GIFs whose provenance matters, this is the limitation to know about. It is
-tracked separately and is the piece that would make a GIF behave like a JPEG.
+Only XMP. There is no interoperable place for EXIF in a GIF, and Comment Extensions are
+free text with no agreed structure, so the `exif` detector's vendor heuristics never fire
+on one. In practice that costs little: the assertion this plugin acts on is an XMP one.
 
 ## The meta endpoint
 

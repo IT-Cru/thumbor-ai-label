@@ -334,5 +334,19 @@
       "relaxed": "ai_generated"
     },
     "notes": "For checking contrast, and for trying AI_LABEL_ICON_SET = 'eu-white'."
+  },
+  {
+    "file": "25-gif-xmp-ai.gif",
+    "description": "GIF carrying XMP in an Application Extension",
+    "size": [
+      600,
+      400
+    ],
+    "bytes": 4735,
+    "expected": {
+      "strict": "ai_generated",
+      "relaxed": "ai_generated"
+    },
+    "notes": "Thumbor skips the post-transform filter phase for every GIF, so the label is drawn by the handler rather than the filter. With USE_GIFSICLE_ENGINE = True there is no PIL image to draw on and this carries no visible mark at all - the /meta/ verdict is then the only disclosure."
   }
 ]

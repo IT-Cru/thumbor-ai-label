@@ -1,7 +1,8 @@
 """Container metadata scanner.
 
-Lifts XMP, EXIF and JUMBF payloads out of JPEG, PNG and WebP buffers without
-decoding pixels. Deliberately free of any Thumbor import so it can be tested and
+Lifts XMP, EXIF and JUMBF payloads out of JPEG, PNG, WebP and GIF buffers without
+decoding pixels. GIF carries XMP only - there is no interoperable place for EXIF
+in one. Deliberately free of any Thumbor import so it can be tested and
 reused independently.
 """
 
