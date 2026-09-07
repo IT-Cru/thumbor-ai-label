@@ -174,12 +174,20 @@ def gif(term: str | None = None, frames: int = 1, size=(240, 180)) -> bytes:
 
 
 def gif_sub_blocks(data: bytes) -> bytes:
-    """Chunk ``data`` into GIF sub-blocks and terminate the chain."""
-    out = b""
+    """Chunk ``data`` into GIF sub-blocks and terminate the chain.
+
+    Joined rather than accumulated with ``+=``: a sub-block holds at most 255 bytes,
+    so a multi-megabyte payload is hundreds of thousands of pieces and repeated
+    concatenation turns the builder quadratic. The performance test builds 32 MB
+    this way, and that alone cost 45 seconds before this was a join.
+    """
+    pieces = []
     for offset in range(0, len(data), 255):
         piece = data[offset : offset + 255]
-        out += bytes([len(piece)]) + piece
-    return out + b"\x00"
+        pieces.append(bytes([len(piece)]))
+        pieces.append(piece)
+    pieces.append(b"\x00")
+    return b"".join(pieces)
 
 
 def gif_colour_table_len(packed: int) -> int:
