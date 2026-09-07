@@ -119,6 +119,10 @@ def _warn_cannot_draw(engine) -> None:
 
     An operator can act on this; the ``AttributeError`` it replaces read as a fault
     in the plugin rather than as an engine that was never able to do the job.
+
+    The named engine is the subject and gifsicle is offered only as the usual cause:
+    any engine keeping no PIL image lands here, and pointing a video engine's
+    operator at ``USE_GIFSICLE_ENGINE`` would send them after the wrong setting.
     """
     name = _engine_name(engine)
     if name in _warned_engines:
@@ -127,8 +131,9 @@ def _warn_cannot_draw(engine) -> None:
     logger.warning(
         "[AiLabel] %s holds no PIL image, so no visible label can be drawn on it; "
         "/meta/ reports labelled: false for these images and the DOM disclosure is "
-        "the only one they carry. Thumbor's gifsicle engine is one such engine, so "
-        "GIFs go out unmarked while USE_GIFSICLE_ENGINE is on.",
+        "the only one they carry. Thumbor's own gifsicle engine "
+        "(USE_GIFSICLE_ENGINE) is the usual way to reach this, but any engine that "
+        "keeps no PIL image does.",
         name,
     )
 

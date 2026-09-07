@@ -297,7 +297,22 @@ class TestAnEngineThatHoldsNoPilImage:
         assert "tests.headless_engine.Engine" in message, "which engine"
         assert "no visible label can be drawn" in message, "what is lost"
         assert "labelled: false" in message, "where the disclosure goes instead"
-        assert "USE_GIFSICLE_ENGINE" in message, "the setting that gets you here"
+        assert "USE_GIFSICLE_ENGINE" in message, "the usual cause, named"
+
+    def test_gifsicle_is_offered_as_the_usual_cause_not_as_the_diagnosis(self, caplog):
+        """Any engine holding no PIL image lands here, not only the gif one.
+
+        `can_draw_on` asks a question about PIL, so a video engine reaches this too -
+        and sending its operator after `USE_GIFSICLE_ENGINE` would be the wrong
+        setting. The engine in play is the subject; gifsicle is only the usual cause.
+        """
+        caplog.set_level("WARNING")
+        self.run_filter()
+
+        message = caplog.records[-1].getMessage()
+        assert message.startswith("[AiLabel] tests.headless_engine.Engine holds no PIL image")
+        assert "is the usual way to reach this" in message
+        assert "any engine that keeps no PIL image does" in message
 
     def test_the_wrapper_subclass_is_not_what_gets_named(self):
         """Every engine the app wraps is called `AiLabelEngine`; that identifies none."""
