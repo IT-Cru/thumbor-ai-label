@@ -606,8 +606,9 @@ class TestFailureContainment:
 class TestLabellingWhenThumborSkipsThePhase:
     """`AiLabelImagingHandler` draws GIFs itself, so its guards need direct cover.
 
-    The happy paths run over HTTP in test_always_on.py; these are the corners that
-    layer cannot reach.
+    The happy paths run over HTTP in test_always_on.py. These are the corners a real
+    request cannot produce: a request with no engine, and an engine that reports
+    multiple frames but cannot hand any over.
     """
 
     def handler(self, **request_attrs):
