@@ -12,8 +12,8 @@ what this module is for, and what it turns up is worth stating plainly:
 * the engine hook does reach a GIF, and a scan is stored;
 * the scan is **empty**, because the container scanner has no GIF walker;
 * the label filter never runs for a GIF at all, so no verdict is computed - which
-  makes ``/meta/`` report ``detection_disabled`` for an image detection was very
-  much enabled for.
+  leaves ``/meta/`` reporting ``detection_disabled`` for an image the plugin was
+  fully enabled for and did scan.
 
 The last two are defects with their own issues. Tests here pin what happens today
 so a fix cannot land unnoticed.
@@ -54,11 +54,26 @@ pytestmark = pytest.mark.skipif(
 CV = "http://cv.iptc.org/newscodes/digitalsourcetype/"
 NS = 'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"'
 
-#: XMP's GIF serialisation (XMP spec part 3): an Application Extension labelled
-#: "XMP DataXMP", the packet, then a 258-byte magic trailer of descending bytes
-#: that lets a GIF reader walk the packet as though it were sub-blocks.
+#: XMP's GIF serialisation (XMP spec part 3): the Extension Introducer and
+#: Application Extension Label, a block size of 11, then the 8-byte application
+#: identifier "XMP Data" and the 3-byte auth code "XMP".
 XMP_APP_LABEL = b"\x21\xff\x0bXMP DataXMP"
-XMP_MAGIC_TRAILER = bytes(range(255, -1, -1)) + b"\x00"
+
+#: The magic trailer that follows the packet: 0x01, then 0xFF down to 0x00, then the
+#: Block Terminator - 258 bytes, matching MAGIC_TRAILER_LEN in Adobe's XMP Toolkit.
+#:
+#: The packet itself is written raw rather than chunked into sub-blocks, so this is
+#: what keeps a GIF reader that knows nothing about XMP from getting lost: walking
+#: length-prefixed sub-blocks through the packet always overshoots into the
+#: descending run, where each byte's value is exactly the distance left to the
+#: terminator, so any landing point funnels to the single 0x00 at the end. The
+#: leading 0x01 covers the one jump that jumps to the trailer's first byte, bouncing
+#: it back into the run.
+#:
+#: Written out properly because #25 will read this file as its reference for the
+#: format - a fixture that is merely close enough to pass would send that walker
+#: after the wrong bytes.
+XMP_MAGIC_TRAILER = b"\x01" + bytes(range(255, -1, -1)) + b"\x00"
 GIF_TRAILER = b"\x3b"
 
 
@@ -100,6 +115,63 @@ def build_context(**overrides) -> Context:
     AiLabelServiceApp._install_engine_hook(boot)
     # Exactly how ContextHandler.initialize builds a request's context.
     return Context(server=server, config=config, importer=boot.modules.importer)
+
+
+class TestTheFixtureIsAConformantGif:
+    """The XMP block built above is the real serialisation, not an approximation.
+
+    #25 will read this file as its reference for how XMP sits in a GIF, so a fixture
+    that merely happens to pass would send that walker after the wrong bytes.
+    Checked against MAGIC_TRAILER_LEN in Adobe's XMP Toolkit SDK.
+    """
+
+    def test_the_magic_trailer_is_258_bytes(self):
+        assert len(XMP_MAGIC_TRAILER) == 258
+
+    def test_it_is_0x01_then_a_descending_run_then_the_block_terminator(self):
+        assert XMP_MAGIC_TRAILER[0] == 0x01
+        assert XMP_MAGIC_TRAILER[1:257] == bytes(range(255, -1, -1))
+        assert XMP_MAGIC_TRAILER[257] == 0x00
+
+    def test_an_xmp_aware_reader_recovers_the_packet_by_subtracting_258(self):
+        """Why the byte count has to be exact, and the check that actually pins it.
+
+        Adobe's SDK recovers the packet as `end - MAGIC_TRAILER_LEN`, and a GIF
+        walker written against the spec will do the same. A trailer one byte short
+        still *walks* fine - the descending run funnels either way, so the sub-block
+        test below passes on both - and the error would surface only here, as a
+        packet missing its last character.
+        """
+        raw = gif(term="trainedAlgorithmicMedia")
+        start = raw.index(XMP_APP_LABEL) + len(XMP_APP_LABEL)
+        end = len(raw) - len(GIF_TRAILER) - len(XMP_MAGIC_TRAILER)
+
+        packet = raw[start:end]
+        assert packet.startswith(b"<x:xmpmeta")
+        assert packet.endswith(b"</x:xmpmeta>"), "a short trailer eats the closing tag"
+
+    def test_a_reader_that_knows_nothing_of_xmp_still_walks_it_cleanly(self):
+        """The property the trailer exists for, exercised rather than asserted.
+
+        The packet is written raw rather than chunked, so a plain GIF reader walking
+        length-prefixed sub-blocks runs straight through it and overshoots into the
+        trailer. Each byte there is the distance left to the terminator, so wherever
+        it lands it funnels to the single 0x00 - and resumes at the next GIF block
+        instead of losing the stream.
+        """
+        raw = gif(term="trainedAlgorithmicMedia")
+        start = raw.index(XMP_APP_LABEL) + len(XMP_APP_LABEL)
+
+        position = start
+        for _ in range(1000):
+            size = raw[position]
+            if size == 0:
+                break
+            position += 1 + size
+        else:  # pragma: no cover - a conformant block terminates in a handful of hops
+            pytest.fail("the sub-block walk never reached a terminator")
+
+        assert raw[position + 1 :] == GIF_TRAILER, "the walk lands exactly on the GIF trailer"
 
 
 class TestTheHookReachesAGif:
