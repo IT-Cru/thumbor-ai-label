@@ -26,6 +26,7 @@ from .builders import (
     gif_xmp_extension,
     itxt,
     png_chunk,
+    raw_profile,
     riff_chunk,
 )
 
@@ -35,6 +36,11 @@ TIFF = b"II*\x00\x08\x00\x00\x00" + b"\x00" * 8
 SAMPLES = {
     "jpeg": build_jpeg([app1_exif(TIFF), app1_xmp(XMP), app11_jumbf(b"manifest")]),
     "png": build_png([itxt(b"XML:com.adobe.xmp", XMP), png_chunk(b"eXIf", TIFF)]),
+    # A raw profile separately, because it is the most intricate parse in the file -
+    # a delimited header, then hex digits measured and joined a window at a time -
+    # and a corrupted length or delimiter there redirects the walk rather than
+    # ending it.
+    "png-raw-profile": build_png([raw_profile(b"xmp", XMP), raw_profile(b"exif", TIFF)]),
     "webp": build_webp([riff_chunk(b"XMP ", XMP), riff_chunk(b"EXIF", TIFF)]),
     # A GIF walk decodes block structure rather than following declared lengths, so
     # a corrupted length byte redirects the walk instead of merely overshooting.

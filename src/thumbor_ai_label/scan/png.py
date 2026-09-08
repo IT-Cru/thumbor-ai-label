@@ -81,8 +81,12 @@ def _strip_whitespace(view: memoryview) -> bytes:
     return b"".join(pieces)
 
 
-def _inflate(data: bytes, cap: int, result: ScanResult, what: str) -> bytes:
-    """Bounded zlib inflate. A compression bomb gets cut off, not honoured."""
+def _inflate(data: bytes | memoryview, cap: int, result: ScanResult, what: str) -> bytes:
+    """Bounded zlib inflate. A compression bomb gets cut off, not honoured.
+
+    Takes a view as readily as bytes - zlib reads either - so the compressed data is
+    not copied on the way in either.
+    """
     try:
         obj = zlib.decompressobj()
         out = obj.decompress(data, cap)
