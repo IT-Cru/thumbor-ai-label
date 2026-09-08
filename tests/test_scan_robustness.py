@@ -17,9 +17,13 @@ from .builders import (
     app1_exif,
     app1_xmp,
     app11_jumbf,
+    build_gif,
     build_jpeg,
     build_png,
     build_webp,
+    gif_image_block,
+    gif_sub_blocks,
+    gif_xmp_extension,
     itxt,
     png_chunk,
     riff_chunk,
@@ -32,6 +36,9 @@ SAMPLES = {
     "jpeg": build_jpeg([app1_exif(TIFF), app1_xmp(XMP), app11_jumbf(b"manifest")]),
     "png": build_png([itxt(b"XML:com.adobe.xmp", XMP), png_chunk(b"eXIf", TIFF)]),
     "webp": build_webp([riff_chunk(b"XMP ", XMP), riff_chunk(b"EXIF", TIFF)]),
+    # A GIF walk decodes block structure rather than following declared lengths, so
+    # a corrupted length byte redirects the walk instead of merely overshooting.
+    "gif": build_gif([gif_image_block(packed=0x87), gif_xmp_extension(XMP)]),
 }
 
 
@@ -69,14 +76,22 @@ def test_burst_corruption_never_raises(name):
 
 def test_random_buffers_never_raise():
     rng = random.Random(7)
-    prefixes = [b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"RIFF\x00\x00\x00\x00WEBP", b""]
+    prefixes = [
+        b"\xff\xd8\xff",
+        b"\x89PNG\r\n\x1a\n",
+        b"RIFF\x00\x00\x00\x00WEBP",
+        b"GIF89a",
+        b"",
+    ]
     for _ in range(1500):
         prefix = prefixes[rng.randrange(len(prefixes))]
         body = bytes(rng.randrange(256) for _ in range(rng.randrange(0, 200)))
         assert isinstance(scan(prefix + body), ScanResult)
 
 
-@pytest.mark.parametrize("raw", [b"", b"\x00", b"\xff", b"\xff\xd8", b"\xff\xd8\xff", b"RIFF"])
+@pytest.mark.parametrize(
+    "raw", [b"", b"\x00", b"\xff", b"\xff\xd8", b"\xff\xd8\xff", b"RIFF", b"GIF8", b"GIF89a"]
+)
 def test_degenerate_buffers(raw):
     result = scan(raw)
     assert isinstance(result, ScanResult)
@@ -104,6 +119,23 @@ def test_cost_does_not_scale_with_image_size():
 
     assert result.xmp == [XMP]
     assert elapsed < 0.1, f"scanning 64 MB took {elapsed:.3f}s; the walk is reading image data"
+
+
+def test_gif_cost_does_not_scale_with_image_size_either():
+    """GIF has no declared block length, so the walk decodes structure to skip data.
+
+    That makes it the format most at risk of reading entrails: a walk that fell back
+    to scanning bytes would blow this bound by orders of magnitude.
+    """
+    image = b"\x2c" + b"\x00" * 9 + b"\x08" + gif_sub_blocks(b"\x77" * (32 * 1024 * 1024))
+    raw = build_gif([gif_xmp_extension(XMP), image])
+
+    start = time.perf_counter()
+    result = scan(raw)
+    elapsed = time.perf_counter() - start
+
+    assert result.xmp == [XMP]
+    assert elapsed < 0.1, f"scanning 32 MB took {elapsed:.3f}s; the walk is reading image data"
 
 
 def test_a_hostile_file_still_reports_that_metadata_exists():

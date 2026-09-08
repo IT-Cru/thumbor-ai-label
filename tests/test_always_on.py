@@ -141,6 +141,10 @@ class TestGifsAreLabelledToo(AlwaysOnCase):
         assert served[0].size == (400, 300)
         assert corner_is_marked(served[0])
 
+    def test_a_camera_gif_is_left_unmarked(self):
+        """Only possible to assert since #25 - before it every GIF read the same."""
+        assert not corner_is_marked(gif_frames(self.get("/unsafe/400x300/camera.gif"))[0])
+
     def test_the_source_corner_really_is_flat(self):
         """Otherwise `corner_is_marked` would report a mark on any GIF at all."""
         source = gif_frames(gif(term="trainedAlgorithmicMedia", size=(900, 600)))
@@ -186,18 +190,31 @@ class TestAGifMetaResponseCarriesAVerdict(AlwaysOnCase):
 
     def test_a_gif_reports_a_real_verdict(self):
         verdict = self.verdict("ai.gif")
-        assert verdict["reason"] == "inconclusive", "examined, nothing found"
-        assert verdict["label"] == "unknown"
+        assert verdict["label"] == "ai_generated"
+        assert verdict["reason"] == "ai_asserted"
 
     def test_it_is_not_reported_as_disabled(self):
         assert self.verdict("ai.gif")["reason"] != "detection_disabled"
+
+    def test_a_camera_gif_is_told_apart_from_an_ai_one(self):
+        """The pair that proves the GIF walker is doing something.
+
+        Before #25 every GIF scanned empty and reached the same verdict, so these
+        two were indistinguishable however the plugin was configured.
+        """
+        assert self.verdict("camera.gif")["label"] is None
+        assert self.verdict("camera.gif")["reason"] == "not_ai_asserted"
 
     def test_a_jpeg_is_unaffected_by_the_reordering(self):
         """The filter still computes it; the handler just asks first and memoises."""
         assert self.verdict("ai.jpg")["reason"] == "ai_asserted"
 
     def test_an_animated_gif_reports_one_verdict_for_the_whole_file(self):
-        assert self.verdict("animated.gif")["reason"] == "inconclusive"
+        assert self.verdict("animated.gif")["label"] == "ai_generated"
+
+    def test_labelled_is_true_because_this_engine_can_draw(self):
+        """GIFs go through PIL by default, so the pixels really do carry the mark."""
+        assert self.verdict("ai.gif")["labelled"] is True
 
 
 class TestGifSuppressionStillApplies(AlwaysOnCase):

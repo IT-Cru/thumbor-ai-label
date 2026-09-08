@@ -17,6 +17,7 @@ class Container(str, Enum):
     JPEG = "jpeg"
     PNG = "png"
     WEBP = "webp"
+    GIF = "gif"
 
 
 class SegmentKind(str, Enum):
