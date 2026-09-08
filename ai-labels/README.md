@@ -58,6 +58,17 @@ AI_LABEL_ICON_SET = "house-style"
 Your set resolves exactly like a bundled one. To swap a single mark instead of a whole
 set, `AI_LABEL_ICONS` takes per-state paths.
 
+**A set needs all four icons, including states you do not draw.** `ai_generated.png`,
+`ai_manipulated.png`, `ai_composite.png` and `unknown.png` — every one, even if
+`AI_LABEL_DRAW_STATES` leaves some of them unmarked. A set is validated once when it is
+built, so it cannot break later because someone added a state back to that key; the person
+flipping the key is rarely the person who made the artwork.
+
+Building a set from scratch is where this bites: a `DRAW_STATES` list naming three states
+makes three files look like the whole job. The set then fails at boot, and with
+`AI_LABEL_STRICT_ERRORS` off — the default — **every request serves unlabelled**. A
+placeholder is enough for a state you never draw.
+
 While `AI_LABEL_ICON_DIR` is set, sets are looked up there and nowhere else: the bundled
 names do not resolve, so a mistyped house-style name fails at boot rather than quietly
 shipping these default marks. Copy a bundled set in if you want it alongside your own.

@@ -116,6 +116,54 @@ class TestIconSet:
         with pytest.raises(IconError, match="is missing"):
             IconSet(icon_dir=tmp_path)
 
+    def test_a_set_holding_only_the_states_it_draws_is_told_why_that_is_not_enough(self, tmp_path):
+        """The reported case: three states configured, three icons made, nothing works.
+
+        `IconSet` loads every entry in `LABEL_STATES` regardless of
+        `AI_LABEL_DRAW_STATES`, so a set built to match a narrowed key fails at boot -
+        and with strict errors off, every request then serves unlabelled. The error was
+        accurate and silent on the one question its reader has: *why does it want an
+        icon for a state I explicitly switched off?*
+        """
+        house = tmp_path / "burdastyle"
+        house.mkdir()
+        for state in ("ai_generated", "ai_manipulated", "ai_composite"):
+            Image.new("RGBA", (60, 20), (255, 0, 0, 255)).save(house / f"{state}.png")
+
+        with pytest.raises(IconError) as raised:
+            IconSet(icon_dir=tmp_path, icon_set="burdastyle")
+
+        message = str(raised.value)
+        assert "unknown.png" in message, "which file"
+        assert "all four label states" in message, "the rule"
+        assert "AI_LABEL_DRAW_STATES" in message, "the key it looks like we ignored"
+        assert "without rebuilding the set" in message, "the reason the rule exists"
+        for state in ("ai_generated", "ai_manipulated", "ai_composite", "unknown"):
+            assert state in message, f"{state} should be named so the set can be completed"
+
+    def test_an_override_is_not_told_about_set_completeness(self, tmp_path):
+        """An override supplies a path for one state and says nothing about the set.
+
+        The set has to be complete for this to test anything: otherwise the first
+        state without an override raises the set message first, and the override
+        path is never reached.
+        """
+        house = tmp_path / "complete"
+        house.mkdir()
+        for state in ("ai_generated", "ai_manipulated", "ai_composite", "unknown"):
+            Image.new("RGBA", (60, 20), (0, 0, 255, 255)).save(house / f"{state}.png")
+
+        with pytest.raises(IconError) as raised:
+            IconSet(
+                overrides={"unknown": str(tmp_path / "nope.png")},
+                icon_dir=tmp_path,
+                icon_set="complete",
+            )
+
+        message = str(raised.value)
+        assert "not found" in message, "the override message, not the set one"
+        assert "all four label states" not in message
+
     def test_every_set_including_default_lives_in_its_own_subdirectory(self, tmp_path):
         """Uniform layout is what makes a directory of house sets drop straight in."""
         for name in BUNDLED_SETS:
