@@ -104,14 +104,43 @@ def _read_application_extension(
     return end + 1
 
 
-def _join_sub_blocks(view: memoryview, i: int, terminator: int) -> bytes:
-    """Concatenate a sub-block chain's payloads, dropping the length prefixes."""
-    out = bytearray()
+def _sub_block_payload_len(view: memoryview, i: int, terminator: int) -> int:
+    """Total payload a sub-block chain holds, without copying any of it."""
+    total = 0
     while i < terminator:
         size = view[i]
-        out += view[i + 1 : i + 1 + size]
+        total += min(size, terminator - i - 1)
         i += 1 + size
-    return bytes(out)
+    return total
+
+
+def _join_sub_blocks(view: memoryview, i: int, terminator: int) -> bytes:
+    """Concatenate a sub-block chain's payloads, dropping the length prefixes."""
+    pieces = []
+    while i < terminator:
+        size = view[i]
+        pieces.append(bytes(view[i + 1 : i + 1 + size]))
+        i += 1 + size
+    return b"".join(pieces)
+
+
+def _within_xmp_budget(length: int, result: ScanResult, limits: ScanLimits) -> bool:
+    """Refuse an oversized packet from its measured length, before copying it.
+
+    ``ScanResult.add`` enforces the same budget but only once it holds the bytes,
+    so a hostile block would be materialised and then dropped. The JPEG walker
+    already refuses extended XMP from its declared length for exactly this reason;
+    a GIF block has no declared length, so it is measured instead.
+
+    ``add`` stays the authority: it tracks cumulative use across segments, which a
+    single length cannot know. This only refuses what cannot possibly fit.
+    """
+    budget = limits.budget_for(SegmentKind.XMP)
+    if length <= budget:
+        return True
+    result.note(f"XMP block holds {length} bytes, over the {budget} budget; skipped")
+    result.truncated = True
+    return False
 
 
 def _collect_xmp(
@@ -128,13 +157,20 @@ def _collect_xmp(
       machinery. Not what the spec says, but reassembling costs little and the
       alternative is handing a detector the length prefixes as though they were
       part of the XML.
+
+    Both are measured before they are copied, so an oversized block costs a walk
+    rather than an allocation.
     """
     block_end = terminator + 1
     packet_end = block_end - MAGIC_TRAILER_LEN
 
     if packet_end > start and bytes(view[packet_end:block_end]) == MAGIC_TRAILER:
+        if not _within_xmp_budget(packet_end - start, result, limits):
+            return
         payload = bytes(view[start:packet_end])
     else:
+        if not _within_xmp_budget(_sub_block_payload_len(view, start, terminator), result, limits):
+            return
         payload = _join_sub_blocks(view, start, terminator)
         result.note("XMP block carries no magic trailer; read as sub-blocks")
 

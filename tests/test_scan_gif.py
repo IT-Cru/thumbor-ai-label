@@ -11,7 +11,7 @@ one through PIL.
 
 from __future__ import annotations
 
-from thumbor_ai_label.scan import Container, scan
+from thumbor_ai_label.scan import Container, ScanLimits, scan
 from thumbor_ai_label.scan.gif import MAGIC_TRAILER
 
 from .builders import (
@@ -140,6 +140,53 @@ class TestChunkedXmp:
     def test_an_empty_block_yields_no_segment(self):
         raw = build_gif([gif_app_extension(b"XMP DataXMP", b"\x00")])
         assert scan(raw).segments == []
+
+
+class TestBudgets:
+    """An oversized block is refused from its measured length, before it is copied.
+
+    `ScanResult.add` enforces the same budget, but only once it is holding the
+    bytes - so a hostile block would be materialised and then dropped. The JPEG
+    walker refuses extended XMP from its *declared* length for the same reason; a
+    GIF block declares nothing, so it gets measured.
+    """
+
+    def packet(self, size: int) -> bytes:
+        return b"<x:xmpmeta>" + b"x" * size + b"</x:xmpmeta>"
+
+    def big(self, size: int, magic_trailer: bool = True) -> bytes:
+        return build_gif([gif_xmp_extension(self.packet(size), magic_trailer=magic_trailer)])
+
+    def test_an_oversized_conformant_packet_is_skipped(self):
+        result = scan(self.big(5000), ScanLimits(max_xmp_bytes=1000))
+        assert result.segments == []
+        assert result.truncated is True
+        assert any("over the 1000 budget" in note for note in result.notes)
+
+    def test_an_oversized_chunked_packet_is_skipped(self):
+        """The reassembly path is the one that would allocate the most."""
+        result = scan(self.big(5000, magic_trailer=False), ScanLimits(max_xmp_bytes=1000))
+        assert result.segments == []
+        assert result.truncated is True
+        assert any("over the 1000 budget" in note for note in result.notes)
+
+    def test_the_measured_length_matches_what_reassembly_produces(self):
+        """A mismatch would refuse packets that fit, or admit ones that do not."""
+        from thumbor_ai_label.scan.gif import _join_sub_blocks, _sub_block_payload_len
+
+        packet = self.packet(900)
+        raw = self.big(900, magic_trailer=False)
+        start = raw.index(b"XMP DataXMP") + len(b"XMP DataXMP")
+        view = memoryview(raw)
+        terminator = raw.index(b"\x00\x3b", start)
+
+        assert _sub_block_payload_len(view, start, terminator) == len(packet)
+        assert _join_sub_blocks(view, start, terminator) == packet
+
+    def test_one_that_fits_is_still_read(self):
+        result = scan(self.big(100), ScanLimits(max_xmp_bytes=1000))
+        assert len(result.xmp) == 1
+        assert result.truncated is False
 
 
 class TestMalformed:
