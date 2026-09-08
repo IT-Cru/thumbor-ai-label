@@ -35,6 +35,11 @@ _WINDOW = 1 << 16
 #: hex payloads with.
 _WHITESPACE = b" \t\n\r\v\f"
 
+#: A PNG text keyword is 1-79 bytes (spec, 11.3.4.2), so the NUL ending it cannot be
+#: further in than byte 79. Bounding the search is what stops a chunk with no NUL at
+#: all from being copied whole just to discover it has no keyword worth reading.
+_MAX_KEYWORD = 79
+
 
 def _find(view: memoryview, start: int, char: int = 0) -> int:
     """Index of the next ``char`` at or after ``start``, or -1 if there is none.
@@ -68,17 +73,28 @@ def _hex_digit_count(view: memoryview) -> int:
     return total
 
 
-def _strip_whitespace(view: memoryview) -> bytes:
-    """Join ``view``'s non-whitespace bytes, a window at a time.
+def _decode_hex(view: memoryview) -> bytearray:
+    """Decode hex digits out of ``view``, a window at a time.
 
-    Peak allocation is one window plus the result, so a payload padded out with
-    megabytes of newlines costs its real size rather than its stored size.
+    Peak allocation is one window plus the result, so a profile padded out with
+    megabytes of newlines costs its real size rather than its stored size - and there
+    is no joined-then-copied intermediate, which is what a strip-and-decode pair
+    would leave sitting in memory at twice the payload.
+
+    ``bytes.fromhex`` ignores ASCII whitespace itself, so only the odd digit that can
+    fall across a window boundary has to be carried by hand. Invalid hex raises, as
+    it did before, and the caller turns that into a note.
     """
-    pieces = [
-        b"".join(bytes(view[position : position + _WINDOW]).split())
-        for position in range(0, len(view), _WINDOW)
-    ]
-    return b"".join(pieces)
+    out = bytearray()
+    carry = b""
+    for position in range(0, len(view), _WINDOW):
+        digits = carry + b"".join(bytes(view[position : position + _WINDOW]).split())
+        even = len(digits) - len(digits) % 2
+        digits, carry = digits[:even], digits[even:]
+        out += bytes.fromhex(digits.decode("ascii"))
+    if carry:
+        raise ValueError("hex payload has an odd number of digits")
+    return out
 
 
 def _inflate(data: bytes | memoryview, cap: int, result: ScanResult, what: str) -> bytes:
@@ -152,7 +168,7 @@ def _handle_itxt(payload: memoryview, result: ScanResult, limits: ScanLimits) ->
     chunk carrying more XMP than the budget allows is refused without ever being
     copied - which is the difference between a bounded scan and a 3x one.
     """
-    sep = _find(payload, 0)
+    sep = _find(payload[: _MAX_KEYWORD + 1], 0)
     if sep < 0 or len(payload) < sep + 3:
         result.note("malformed iTXt chunk")
         result.truncated = True
@@ -190,7 +206,7 @@ def _handle_itxt(payload: memoryview, result: ScanResult, limits: ScanLimits) ->
 
 def _handle_text(ctype: bytes, payload: memoryview, result: ScanResult, limits: ScanLimits) -> None:
     """tEXt/zTXt: keyword\0 [method(1)] body. Only raw profiles are of interest."""
-    sep = _find(payload, 0)
+    sep = _find(payload[: _MAX_KEYWORD + 1], 0)
     if sep < 0:
         result.note(f"malformed {ctype!r} chunk")
         result.truncated = True
@@ -244,12 +260,12 @@ def _handle_raw_profile(
         return
 
     try:
-        decoded = bytes.fromhex(_strip_whitespace(hex_view).decode("ascii"))
+        decoded = _decode_hex(hex_view)
     except (ValueError, UnicodeDecodeError):
         result.note(f"raw profile {keyword!r} is not valid hex")
         result.truncated = True
         return
 
     if kind is SegmentKind.EXIF and decoded[:6] == b"Exif\x00\x00":
-        decoded = decoded[6:]
+        del decoded[:6]
     result.add(kind, decoded, f"{origin}/raw-profile", limits)

@@ -184,15 +184,73 @@ class TestBudgetsAreCheckedBeforeCopying:
         assert result.xmp == [payload]
 
     def test_a_header_field_spanning_the_search_window_is_still_found(self):
-        """The windowed search must not miss a delimiter past its first window."""
+        """The windowed search must not miss a delimiter past its first window.
+
+        The translated keyword is the field that can legitimately run long - unlike
+        the keyword itself, which the spec caps at 79 bytes.
+        """
         from thumbor_ai_label.scan.png import _WINDOW
 
-        padding = b"q" * (_WINDOW * 2 + 13)
-        chunk = png_chunk(b"tEXt", b"Comment" + padding + b"\x00ignored")
+        translated = b"t" * (_WINDOW * 2 + 13)
+        chunk = png_chunk(
+            b"iTXt",
+            b"XML:com.adobe.xmp\x00" + bytes([0, 0]) + b"\x00" + translated + b"\x00" + XMP,
+        )
+        result = scan(build_png([chunk]))
+
+        assert result.xmp == [XMP], "the payload after a multi-window field is still read"
+        assert result.truncated is False
+
+    def test_a_keyword_longer_than_the_spec_allows_is_malformed(self):
+        """79 bytes is the cap (PNG 11.3.4.2), so a NUL further in means damage.
+
+        Bounding the search is what stops a chunk with no NUL at all from being
+        copied whole just to discover it has no keyword worth reading.
+        """
+        from thumbor_ai_label.scan.png import _MAX_KEYWORD
+
+        chunk = png_chunk(b"tEXt", b"k" * (_MAX_KEYWORD + 1) + b"\x00value")
         result = scan(build_png([chunk]))
 
         assert result.segments == []
-        assert result.truncated is False, "the separator was found, so nothing is malformed"
+        assert result.truncated is True
+        assert any("malformed" in note for note in result.notes)
+
+    def test_a_keyword_at_the_maximum_length_is_still_read(self):
+        """The bound is the spec's, so it must not reject what the spec allows."""
+        from thumbor_ai_label.scan.png import _MAX_KEYWORD
+
+        keyword = b"Raw profile type xmp".ljust(_MAX_KEYWORD, b"x")
+        assert len(keyword) == _MAX_KEYWORD
+        chunk = png_chunk(b"tEXt", keyword + b"\x00ignored")
+        result = scan(build_png([chunk]))
+
+        assert result.truncated is False, "a legal keyword is not damage"
+
+    def test_a_far_off_keyword_delimiter_is_not_copied_up_to(self):
+        """A NUL that *is* present, just megabytes in - the case the bound exists for.
+
+        Distinct from a chunk with no NUL at all, which exits on the failed search
+        without copying anything. Here the search would have succeeded, and the
+        keyword slice was the allocation: 8 MB of it, to learn the keyword is not one
+        this walker reads.
+        """
+        import tracemalloc
+
+        size = 8 * 1024 * 1024
+        chunk = png_chunk(b"iTXt", b"k" * size + b"\x00" + bytes([0, 0]) + b"\x00\x00text")
+        raw = build_png([chunk])  # built before the measurement, not inside it
+
+        tracemalloc.start()
+        result = scan(raw)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert result.segments == []
+        assert peak < 1024 * 1024, (
+            f"peaked at {peak / 1024 / 1024:.1f} MB reading a keyword out of an "
+            f"{size / 1024 / 1024:.0f} MB chunk"
+        )
 
     def test_peak_allocation_does_not_track_the_buffer(self):
         """The property the whole change exists for, asserted rather than described.
