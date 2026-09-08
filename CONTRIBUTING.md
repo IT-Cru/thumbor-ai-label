@@ -116,7 +116,7 @@ A documentation change is `chore:`, which is what the table already says.
 
 Choose the type from what the change does to the **shipped plugin**, not from the size of
 the diff. Moving files around is `chore`. Moving files around **and** adding a config
-value people can set is `feature`, because the second half is the part they notice. The
+value people can set is `feat`, because the second half is the part they notice. The
 branch and the title should agree — they are answering the same question.
 
 ### Branches
@@ -149,8 +149,9 @@ later; which tool typed it is neither durable nor relevant to reviewing the diff
 
 `<type>: <description>`, using the short forms in the table above.
 
-**The title is not just a label for reviewers — it is published.** `release.yml` builds
-each release with `gh release create --generate-notes`, and GitHub builds those notes
+**The title is not just a label for reviewers — it is published.**
+`.github/workflows/release.yml` builds each release with
+`gh release create --generate-notes`, and GitHub builds those notes
 from **merged pull request titles**, each linked to its PR. So the title is the line a
 human reads when deciding whether an upgrade affects them, and it has to say what kind of
 change it was without them opening anything.

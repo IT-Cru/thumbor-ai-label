@@ -5,7 +5,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # Called by release.yml so a tag is gated by the same matrix, not a copy of it.
+  # Called by workflows/release.yml so a tag is gated by the same matrix, not a
+  # copy of it. (Not .github/release.yml, which is the release-note categories.)
   workflow_call:
 
 jobs:

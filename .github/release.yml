@@ -1,9 +1,12 @@
 # Categories for the release notes GitHub generates.
 #
-# `release.yml` in .github/ is read by `gh release create --generate-notes`, which
-# release.yml (the workflow) runs for every tag. Without this file the notes are one
-# flat "What's Changed" list in merge order, so a reader deciding whether an upgrade
-# affects them has to read every line to find the one that does.
+# This file - `.github/release.yml` - is read by `gh release create --generate-notes`,
+# which `.github/workflows/release.yml` runs for every tag. Two different files share
+# the name; this is the categories one, that is the workflow.
+#
+# Without it the notes are one flat "What's Changed" list in merge order, so a reader
+# deciding whether an upgrade affects them has to read every line to find the one that
+# does.
 #
 # **Categorisation is by label, not by title prefix.** GitHub offers no way to group
 # on the title, so `pr-label.yml` derives the label from the type prefix the title
