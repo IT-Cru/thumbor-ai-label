@@ -96,22 +96,35 @@ Two things that catch people out:
   nothing about the second. Running pre-commit covers both, which is the reason to
   install it.
 
-## Branch naming
+## Naming branches and pull requests
 
-Branches follow [Conventional Branch](https://conventionalbranch.org/) v1.1.0:
-`<type>/<description>`.
+Both use the [Conventional Branch](https://conventionalbranch.org/) v1.1.0 types. One
+table for both, because they are the same five types spelled two ways and a second table
+would drift:
 
-| Prefix | For |
-|---|---|
-| `feature/` or `feat/` | new features |
-| `bugfix/` or `fix/` | bug fixes |
-| `hotfix/` | urgent fixes |
-| `release/` | preparing a release |
-| `chore/` | non-code tasks — dependencies, docs, tooling |
+| Purpose | Branch prefix | PR title | Release-note section |
+|---|---|---|---|
+| new features | `feature/` or `feat/` | `feat:` | Features |
+| bug fixes | `bugfix/` or `fix/` | `fix:` | Fixes |
+| urgent fixes | `hotfix/` | `hotfix:` | Fixes |
+| preparing a release | `release/` | `release:` | *(kept out of the notes)* |
+| non-code tasks — dependencies, docs, tooling | `chore/` | `chore:` | Maintenance |
 
-Lowercase `a-z`, digits and hyphens only — no underscores, spaces or other punctuation,
-and no leading, trailing or consecutive hyphens. Dots are allowed only in a `release/`
-description, for the version number. Trunk branches (`main`) carry no prefix.
+**Types the spec does not define are not part of this.** No `refactor:`, `docs:`,
+`test:`, `perf:` or `style:` — those are Conventional *Commits*, a different convention.
+A documentation change is `chore:`, which is what the table already says.
+
+Choose the type from what the change does to the **shipped plugin**, not from the size of
+the diff. Moving files around is `chore`. Moving files around **and** adding a config
+value people can set is `feat`, because the second half is the part they notice. The
+branch and the title should agree — they are answering the same question.
+
+### Branches
+
+`<type>/<description>`. Lowercase `a-z`, digits and hyphens only — no underscores, spaces
+or other punctuation, and no leading, trailing or consecutive hyphens. Dots are allowed
+only in a `release/` description, for the version number. Trunk branches (`main`) carry
+no prefix.
 
 Include the issue number where there is one:
 
@@ -121,16 +134,43 @@ fix/issue-42-webp-truncation
 chore/issue-1-mkdocs-site
 ```
 
-Choose the prefix from what the change does to the *shipped plugin*, not from the size of
-the diff. Moving files around is `chore/`. Moving files around **and** adding a config
-value people can set is `feature/`, because the second half is the part they notice.
-
 **Do not use the AI agent source prefixes.** v1.1.0 adds `ai/`, `claude/`, `codex/`,
-`copilot/` and `cursor/` for branches an agent produced. This project does not use them.
-A branch name should say what the work *is*, so it still means something in a branch
-listing months later; which tool typed it is neither durable nor relevant to reviewing
-the diff. Authorship belongs in commit trailers, where `Co-Authored-By` already records
-it.
+`copilot/` and `cursor/` to flag a branch an agent produced. They exist for fully
+automatic pipelines — an agent opening branches unattended, where "a machine wrote this"
+is the thing a reviewer most needs to know up front. Work done by a person, with or
+without an assistant, is an ordinary work item and takes a purpose prefix.
+
+This project has no such pipeline, so those prefixes are not used here at all. A branch
+name should say what the work *is*, so it still means something in a listing months
+later; which tool typed it is neither durable nor relevant to reviewing the diff, and
+`Co-Authored-By` already records authorship where it belongs.
+
+### Pull request titles
+
+`<type>: <description>`, using the short forms in the table above.
+
+**The title is not just a label for reviewers — it is published.**
+`.github/workflows/release.yml` builds each release with
+`gh release create --generate-notes`, and GitHub builds those notes
+from **merged pull request titles**, each linked to its PR. So the title is the line a
+human reads when deciding whether an upgrade affects them, and it has to say what kind of
+change it was without them opening anything.
+
+It reaches the commit log too: a squash merge takes the PR title as the merged commit
+subject.
+
+**You do not need to add a label.** `.github/workflows/pr-label.yml` derives it from the
+prefix — `feat:` becomes `enhancement`, `fix:` and `hotfix:` become `bug`, and so on —
+and `.github/release.yml` maps those to the sections in the table. Retitling a PR moves
+it between sections. The prefix is the single thing to get right; asking for a matching
+label as well would just be a second thing to forget.
+
+A title with no recognised prefix is not rejected. The PR lands under **Other changes**
+in the notes and the workflow leaves a warning annotation, so nothing is silently
+dropped — but it says nothing useful to whoever reads the release.
+
+Commit message subjects are a separate matter and carry **no prefix**: they are plain
+imperative sentences, as the existing history shows.
 
 ## Things that are easy to get wrong here
 
