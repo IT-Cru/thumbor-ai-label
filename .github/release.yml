@@ -1,0 +1,44 @@
+# Categories for the release notes GitHub generates.
+#
+# `release.yml` in .github/ is read by `gh release create --generate-notes`, which
+# release.yml (the workflow) runs for every tag. Without this file the notes are one
+# flat "What's Changed" list in merge order, so a reader deciding whether an upgrade
+# affects them has to read every line to find the one that does.
+#
+# **Categorisation is by label, not by title prefix.** GitHub offers no way to group
+# on the title, so `pr-label.yml` derives the label from the type prefix the title
+# already carries - `feat:`, `fix:`, `hotfix:`, `chore:` and `release:`, mapping to
+# `enhancement`, `bug`, `bug`, `chore` and `release`. The prefix stays the single
+# thing a contributor has to get right; this file only says what each one is called
+# in the notes.
+#
+# Read from the DEFAULT BRANCH at release time, not from the tag - so a change here
+# takes effect for the next release only once it is on main.
+changelog:
+  exclude:
+    labels:
+      # A release-prep PR listed in the notes for the release it prepares says
+      # nothing a reader can act on.
+      - release
+
+  # First match wins, so the catch-all has to come last.
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+
+    - title: Fixes
+      labels:
+        - bug
+
+    - title: Maintenance
+      labels:
+        - chore
+        - documentation
+
+    # Anything unlabelled - a title whose prefix the labeller did not recognise.
+    # Present so nothing is silently dropped from the notes; a PR landing here is a
+    # sign the title did not follow the convention.
+    - title: Other changes
+      labels:
+        - "*"
