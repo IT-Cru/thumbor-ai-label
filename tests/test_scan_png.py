@@ -140,3 +140,152 @@ class TestTextChunkEdges:
         result = scan(build_png([chunk]))
         assert result.xmp == []
         assert result.truncated is True
+
+
+class TestBudgetsAreCheckedBeforeCopying:
+    """A payload too big to keep must not be materialised in order to find that out.
+
+    PNG is where this mattered most: a text chunk's header used to be located by
+    copying the whole chunk, and a raw profile was expanded through a body slice, a
+    split, a joined hex string and an ASCII decode - roughly four times the buffer -
+    before the budget was consulted. Both are now measured in place.
+    """
+
+    def test_an_oversized_raw_profile_is_refused_without_decoding(self):
+        big = b"<x:xmpmeta>" + b"y" * 20_000 + b"</x:xmpmeta>"
+        result = scan(build_png([raw_profile(b"xmp", big)]), ScanLimits(max_xmp_bytes=1000))
+
+        assert result.xmp == []
+        assert result.truncated is True
+        assert any("byte budget exhausted" in note for note in result.notes)
+
+    def test_an_oversized_itxt_is_refused(self):
+        big = b"<x:xmpmeta>" + b"y" * 20_000 + b"</x:xmpmeta>"
+        chunk = itxt(b"XML:com.adobe.xmp", big)
+        result = scan(build_png([chunk]), ScanLimits(max_xmp_bytes=1000))
+
+        assert result.xmp == []
+        assert any("byte budget exhausted" in note for note in result.notes)
+
+    def test_a_profile_padded_with_whitespace_costs_its_real_size(self):
+        """ImageMagick wraps hex across lines, so stored size overstates the payload.
+
+        Measuring the stored bytes rather than the hex digits would refuse a profile
+        that fits, and would do it more often the more the writer wrapped.
+        """
+        payload = b"<x:xmpmeta>" + b"z" * 400 + b"</x:xmpmeta>"
+        hex_text = payload.hex().encode("ascii")
+        wrapped = b"\n".join(hex_text[i : i + 78] for i in range(0, len(hex_text), 78))
+        body = b"\nxmp\n" + str(len(payload)).encode() + b"\n" + wrapped
+        chunk = png_chunk(b"tEXt", b"Raw profile type xmp\x00" + body)
+
+        # A budget that fits the payload but not the wrapped hex it arrived in.
+        result = scan(build_png([chunk]), ScanLimits(max_xmp_bytes=len(payload)))
+        assert result.xmp == [payload]
+
+    def test_a_header_field_spanning_the_search_window_is_still_found(self):
+        """The windowed search must not miss a delimiter past its first window.
+
+        The translated keyword is the field that can legitimately run long - unlike
+        the keyword itself, which the spec caps at 79 bytes.
+        """
+        from thumbor_ai_label.scan.png import _WINDOW
+
+        translated = b"t" * (_WINDOW * 2 + 13)
+        chunk = png_chunk(
+            b"iTXt",
+            b"XML:com.adobe.xmp\x00" + bytes([0, 0]) + b"\x00" + translated + b"\x00" + XMP,
+        )
+        result = scan(build_png([chunk]))
+
+        assert result.xmp == [XMP], "the payload after a multi-window field is still read"
+        assert result.truncated is False
+
+    def test_a_keyword_longer_than_the_spec_allows_is_malformed(self):
+        """79 bytes is the cap (PNG 11.3.4.2), so a NUL further in means damage.
+
+        Bounding the search is what stops a chunk with no NUL at all from being
+        copied whole just to discover it has no keyword worth reading.
+        """
+        from thumbor_ai_label.scan.png import _MAX_KEYWORD
+
+        chunk = png_chunk(b"tEXt", b"k" * (_MAX_KEYWORD + 1) + b"\x00value")
+        result = scan(build_png([chunk]))
+
+        assert result.segments == []
+        assert result.truncated is True
+        assert any("malformed" in note for note in result.notes)
+
+    def test_a_keyword_at_the_maximum_length_is_still_read(self):
+        """The bound is the spec's, so it must not reject what the spec allows."""
+        from thumbor_ai_label.scan.png import _MAX_KEYWORD
+
+        keyword = b"Raw profile type xmp".ljust(_MAX_KEYWORD, b"x")
+        assert len(keyword) == _MAX_KEYWORD
+        chunk = png_chunk(b"tEXt", keyword + b"\x00ignored")
+        result = scan(build_png([chunk]))
+
+        assert result.truncated is False, "a legal keyword is not damage"
+
+    def test_the_measured_size_is_exactly_what_decoding_produces(self):
+        """`_hex_digit_count` gates the budget; `_decode_hex` produces the payload.
+
+        They read whitespace by different mechanisms - `translate(delete=...)` and
+        `bytes.split()` - so a divergence between the two would either refuse
+        profiles that fit or admit ones that do not. Checked across a window
+        boundary, where a lone odd digit is carried by hand.
+        """
+        from thumbor_ai_label.scan.png import _WINDOW, _decode_hex, _hex_digit_count
+
+        for padding in (b"", b"\n", b"\t\r ", b"\x0b\x0c"):
+            digits = (b"ab" + padding) * (_WINDOW // 2)
+            view = memoryview(digits)
+            assert _hex_digit_count(view) // 2 == len(_decode_hex(view)), f"pad={padding!r}"
+
+    def test_a_far_off_keyword_delimiter_is_not_copied_up_to(self):
+        """A NUL that *is* present, just megabytes in - the case the bound exists for.
+
+        Distinct from a chunk with no NUL at all, which exits on the failed search
+        without copying anything. Here the search would have succeeded, and the
+        keyword slice was the allocation: 8 MB of it, to learn the keyword is not one
+        this walker reads.
+        """
+        import tracemalloc
+
+        size = 8 * 1024 * 1024
+        chunk = png_chunk(b"iTXt", b"k" * size + b"\x00" + bytes([0, 0]) + b"\x00\x00text")
+        raw = build_png([chunk])  # built before the measurement, not inside it
+
+        tracemalloc.start()
+        result = scan(raw)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert result.segments == []
+        assert peak < 1024 * 1024, (
+            f"peaked at {peak / 1024 / 1024:.1f} MB reading a keyword out of an "
+            f"{size / 1024 / 1024:.0f} MB chunk"
+        )
+
+    def test_peak_allocation_does_not_track_the_buffer(self):
+        """The property the whole change exists for, asserted rather than described.
+
+        A 24 MB profile against a 2 MB budget used to peak near 100 MB. The bound
+        here is deliberately loose - it is catching a return to copy-then-check, not
+        policing a byte count.
+        """
+        import tracemalloc
+
+        big = b"<x:xmpmeta>" + b"y" * (12 * 1024 * 1024) + b"</x:xmpmeta>"
+        raw = build_png([raw_profile(b"xmp", big)])
+
+        tracemalloc.start()
+        result = scan(raw, ScanLimits(max_xmp_bytes=1024))
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert result.xmp == [], "far too big to keep"
+        assert peak < 4 * 1024 * 1024, (
+            f"peaked at {peak / 1024 / 1024:.1f} MB on a {len(raw) / 1024 / 1024:.0f} MB "
+            "buffer; a payload is being copied before the budget refuses it"
+        )

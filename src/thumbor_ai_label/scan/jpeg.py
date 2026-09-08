@@ -123,11 +123,11 @@ def _handle_app1(
     if payload[: len(EXIF_SIG)] == EXIF_SIG:
         # Hand over the TIFF header onwards; the Exif\0\0 framing is JPEG's, not
         # part of the EXIF structure a detector wants to parse.
-        result.add(SegmentKind.EXIF, bytes(payload[len(EXIF_SIG) :]), "jpeg:APP1/Exif", limits)
+        result.add(SegmentKind.EXIF, payload[len(EXIF_SIG) :], "jpeg:APP1/Exif", limits)
         return
 
     if payload[: len(XMP_SIG)] == XMP_SIG:
-        result.add(SegmentKind.XMP, bytes(payload[len(XMP_SIG) :]), "jpeg:APP1/xmp", limits)
+        result.add(SegmentKind.XMP, payload[len(XMP_SIG) :], "jpeg:APP1/xmp", limits)
         return
 
     if payload[: len(XMP_EXT_SIG)] == XMP_EXT_SIG:
@@ -215,7 +215,7 @@ def _flush_extended_xmp(
                 )
             )
             result.truncated = True
-        result.add(SegmentKind.XMP, bytes(assembled), "jpeg:APP1/xmp-extension", limits)
+        result.add(SegmentKind.XMP, assembled, "jpeg:APP1/xmp-extension", limits)
 
 
 def _flush_jumbf(
@@ -232,7 +232,7 @@ def _flush_jumbf(
         if len(assembled) > 8:  # more than a bare LBox/TBox
             result.add(
                 SegmentKind.JUMBF,
-                bytes(assembled),
+                assembled,
                 f"jpeg:APP11/jumbf#{instance}",
                 limits,
             )

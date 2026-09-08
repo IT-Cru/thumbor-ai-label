@@ -43,17 +43,20 @@ def scan_webp(view: memoryview, result: ScanResult, limits: ScanLimits) -> None:
             result.truncated = True
             break
 
+        # Slices, not copies: `add` materialises a payload only once the budget has
+        # accepted it, so an oversized chunk costs the walk and nothing else.
         if fourcc == b"XMP ":
-            result.add(SegmentKind.XMP, bytes(view[data_start:data_end]), "webp:XMP", limits)
+            result.add(SegmentKind.XMP, view[data_start:data_end], "webp:XMP", limits)
         elif fourcc == b"EXIF":
-            payload = bytes(view[data_start:data_end])
+            payload = view[data_start:data_end]
             # The spec says raw TIFF here, but encoders in the wild still prepend
-            # the JPEG-style Exif framing.
-            if payload[: len(EXIF_PREFIX)] == EXIF_PREFIX:
+            # the JPEG-style Exif framing. Comparing the first six bytes copies six
+            # bytes, not the segment.
+            if bytes(payload[: len(EXIF_PREFIX)]) == EXIF_PREFIX:
                 payload = payload[len(EXIF_PREFIX) :]
             result.add(SegmentKind.EXIF, payload, "webp:EXIF", limits)
         elif fourcc == b"C2PA":
-            result.add(SegmentKind.JUMBF, bytes(view[data_start:data_end]), "webp:C2PA", limits)
+            result.add(SegmentKind.JUMBF, view[data_start:data_end], "webp:C2PA", limits)
 
         # RIFF pads odd-sized chunks to an even boundary.
         i = data_end + (size & 1)

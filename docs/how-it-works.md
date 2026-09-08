@@ -102,10 +102,20 @@ The scanner runs on untrusted bytes inside a request path, so it **never raises*
 corrupt or hostile file yields a partial result with `truncated` set and a note explaining
 why — an exception here would turn a weird image into a 500.
 
-Byte budgets bound XMP, EXIF and JUMBF independently; zlib inflation is capped against
-compression bombs; oversized Extended XMP is refused from its declared length before
-anything is allocated. `RawSegment.__repr__` omits payloads, which can carry GPS and
-creator data, so they stay out of logs and tracebacks.
+Byte budgets bound XMP, EXIF and JUMBF independently, and they bound **allocation**, not
+just what is kept: a payload is measured where it lies and copied only once the budget has
+accepted it. `ScanResult.accepts` is the single predicate, asked with a length by a walker
+and with the bytes by `add`, so refusing early and refusing late produce the same note.
+
+That matters most in PNG, whose chunks carry a 32-bit length. Locating a text chunk's
+header used to mean copying the whole chunk, and a raw profile was expanded through a body
+slice, a split, a joined hex string and an ASCII decode before anything was weighed —
+roughly four times the buffer for a payload far too large to keep. Both are now walked a
+window at a time, and a raw profile's hex digits are counted before any of them are
+decoded. Extended XMP is refused from its declared length, as it always was.
+
+zlib inflation is capped against compression bombs. `RawSegment.__repr__` omits payloads,
+which can carry GPS and creator data, so they stay out of logs and tracebacks.
 
 The suite fuzzes mutated and truncated inputs across every container, asserting no
 exception escapes. GIF earns particular attention there: it is the one format whose walk

@@ -41,6 +41,9 @@ APPLICATION_EXTENSION = 0xFF
 APP_ID_LEN = 11
 XMP_APP_ID = b"XMP DataXMP"
 
+#: Recorded on every segment this walker collects, and named in a refusal note.
+ORIGIN = "gif:XMP DataXMP"
+
 #: 0x01, then 0xFF down to 0x00, then the Block Terminator. 258 bytes, matching
 #: MAGIC_TRAILER_LEN in Adobe's XMP Toolkit, which is what writes and reads it.
 #:
@@ -124,25 +127,6 @@ def _join_sub_blocks(view: memoryview, i: int, terminator: int) -> bytes:
     return b"".join(pieces)
 
 
-def _within_xmp_budget(length: int, result: ScanResult, limits: ScanLimits) -> bool:
-    """Refuse an oversized packet from its measured length, before copying it.
-
-    ``ScanResult.add`` enforces the same budget but only once it holds the bytes,
-    so a hostile block would be materialised and then dropped. The JPEG walker
-    already refuses extended XMP from its declared length for exactly this reason;
-    a GIF block has no declared length, so it is measured instead.
-
-    ``add`` stays the authority: it tracks cumulative use across segments, which a
-    single length cannot know. This only refuses what cannot possibly fit.
-    """
-    budget = limits.budget_for(SegmentKind.XMP)
-    if length <= budget:
-        return True
-    result.note(f"XMP block holds {length} bytes, over the {budget} budget; skipped")
-    result.truncated = True
-    return False
-
-
 def _collect_xmp(
     view: memoryview, start: int, terminator: int, result: ScanResult, limits: ScanLimits
 ) -> None:
@@ -158,24 +142,25 @@ def _collect_xmp(
       alternative is handing a detector the length prefixes as though they were
       part of the XML.
 
-    Both are measured before they are copied, so an oversized block costs a walk
-    rather than an allocation.
+    Either way the packet is measured before it is copied, so an oversized block costs
+    a walk rather than an allocation. A conformant one is a slice, and `add` does the
+    copying; a chunked one has to be joined, so its length is walked first.
     """
     block_end = terminator + 1
     packet_end = block_end - MAGIC_TRAILER_LEN
 
     if packet_end > start and bytes(view[packet_end:block_end]) == MAGIC_TRAILER:
-        if not _within_xmp_budget(packet_end - start, result, limits):
-            return
-        payload = bytes(view[start:packet_end])
-    else:
-        if not _within_xmp_budget(_sub_block_payload_len(view, start, terminator), result, limits):
-            return
-        payload = _join_sub_blocks(view, start, terminator)
-        result.note("XMP block carries no magic trailer; read as sub-blocks")
+        result.add(SegmentKind.XMP, view[start:packet_end], ORIGIN, limits)
+        return
 
-    if payload:
-        result.add(SegmentKind.XMP, payload, "gif:XMP DataXMP", limits)
+    length = _sub_block_payload_len(view, start, terminator)
+    if length == 0:
+        return
+    if not result.accepts(SegmentKind.XMP, length, ORIGIN, limits):
+        return
+
+    result.note("XMP block carries no magic trailer; read as sub-blocks")
+    result.add(SegmentKind.XMP, _join_sub_blocks(view, start, terminator), ORIGIN, limits)
 
 
 def _skip_extension(

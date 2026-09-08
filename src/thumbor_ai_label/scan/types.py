@@ -10,6 +10,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
+#: What a walker may hand to ``ScanResult.add``. A ``memoryview`` is the useful one:
+#: slicing it is free, so the copy can wait until the budget has said yes.
+Payload = bytes | bytearray | memoryview
+
 
 class Container(str, Enum):
     """Image container the scanner recognised from the file's magic bytes."""
@@ -101,8 +105,16 @@ class ScanResult:
 
     # -- collection ------------------------------------------------------
 
-    def add(self, kind: SegmentKind, data: bytes, origin: str, limits: ScanLimits) -> bool:
-        """Record a payload if it fits the limits. Returns False if it was dropped."""
+    def accepts(self, kind: SegmentKind, length: int, origin: str, limits: ScanLimits) -> bool:
+        """Whether a payload of ``length`` bytes from ``origin`` would be recorded.
+
+        The single predicate. ``add`` asks it with the bytes in hand, and a walker can
+        ask it with only a length - before copying anything out of the buffer - so the
+        arithmetic and the note explaining a refusal exist once rather than per walker.
+
+        Records the note and sets ``truncated`` on refusal, so refusing early leaves
+        exactly the same trail as refusing late.
+        """
         if len(self.segments) >= limits.max_segments:
             self.note(f"segment-limit reached ({limits.max_segments}); stopped collecting")
             self.truncated = True
@@ -110,16 +122,30 @@ class ScanResult:
 
         used = self._used.get(kind, 0)
         budget = limits.budget_for(kind)
-        if used + len(data) > budget:
+        if used + length > budget:
             self.note(
                 f"{kind.value} byte budget exhausted ({used} of {budget}); "
-                f"dropped {len(data)} from {origin}"
+                f"dropped {length} from {origin}"
             )
             self.truncated = True
             return False
 
-        self._used[kind] = used + len(data)
-        self.segments.append(RawSegment(kind=kind, data=data, origin=origin))
+        return True
+
+    def add(self, kind: SegmentKind, data: Payload, origin: str, limits: ScanLimits) -> bool:
+        """Record a payload if it fits the limits. Returns False if it was dropped.
+
+        ``data`` may be a ``memoryview`` over the source buffer, and **is copied only
+        once it has been accepted**. Slicing a memoryview costs nothing, so a walker
+        that hands one over never materialises a payload the budget was going to
+        refuse - which is the whole point of the budget being a memory bound.
+        """
+        if not self.accepts(kind, len(data), origin, limits):
+            return False
+
+        payload = bytes(data)
+        self._used[kind] = self._used.get(kind, 0) + len(payload)
+        self.segments.append(RawSegment(kind=kind, data=payload, origin=origin))
         return True
 
     def note(self, message: str) -> None:
