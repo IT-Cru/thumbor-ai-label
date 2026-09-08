@@ -200,8 +200,21 @@ class IconSet:
 
         if not path.is_file():
             if override is not None:
+                # An override names one state and says nothing about the set's
+                # completeness, so the rule below does not apply to it.
                 raise IconError(f"icon override for {state.value!r} not found: {path}")
-            raise IconError(f"icon set {self.name!r} is missing {path}")
+            # Read beside an AI_LABEL_DRAW_STATES list that omits this state, "is
+            # missing unknown.png" looks like the plugin ignoring the config rather
+            # than a set that is incomplete. Say which it is, and why.
+            raise IconError(
+                "icon set {!r} is missing {}; a set needs an icon for all four label "
+                "states ({}), including states left out of AI_LABEL_DRAW_STATES - so "
+                "that key can be changed later without rebuilding the set".format(
+                    self.name,
+                    path,
+                    ", ".join(other.value for other in LABEL_STATES),
+                )
+            )
 
         try:
             with Image.open(path) as handle:

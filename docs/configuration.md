@@ -153,6 +153,19 @@ AI_LABEL_ICON_DIR = "/etc/thumbor/icon-sets"
 AI_LABEL_ICON_SET = "house-style"
 ```
 
+!!! warning "A set needs all four icons, including states you do not draw"
+    `ai_generated.png`, `ai_manipulated.png`, `ai_composite.png` and `unknown.png` —
+    every one, even if `AI_LABEL_DRAW_STATES` leaves some of them unmarked. A set is
+    validated once when it is built, so it cannot break later because someone added a
+    state back to that key; the person flipping the key is rarely the person who made
+    the artwork.
+
+    Building a set from scratch is where this bites, because a `DRAW_STATES` list
+    naming three states makes three files look like the whole job. The set then fails
+    at boot, and with `AI_LABEL_STRICT_ERRORS` off — the default — **every request
+    serves unlabelled**. A placeholder is enough to satisfy the rule for a state you
+    never draw.
+
 A set is a subdirectory of `AI_LABEL_ICON_DIR` holding the same four filenames, so your own
 artwork resolves exactly like a bundled set. That is one mounted volume and one name —
 rather than a rebuild to get files into the installed package, or a bind-mount landing on
@@ -228,6 +241,9 @@ for an image below `AI_LABEL_MIN_IMAGE_SIZE`:
 An empty list — `AI_LABEL_DRAW_STATES = []` — is a valid "meta only" mode: detection runs,
 verdicts are published, no pixels are touched. Use `AI_LABEL_ENABLED = False` if you want
 detection off as well.
+
+**Narrowing this key does not shrink the icon set.** A house set still needs all four PNGs,
+including the states this list leaves out — see [A house style](#a-house-style).
 
 Two things this key is **not** for. Setting an icon override to `""`, `None` or `False`
 does not suppress a state; it is rejected at startup, because a map of paths holds paths.
