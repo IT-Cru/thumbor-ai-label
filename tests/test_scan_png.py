@@ -227,6 +227,21 @@ class TestBudgetsAreCheckedBeforeCopying:
 
         assert result.truncated is False, "a legal keyword is not damage"
 
+    def test_the_measured_size_is_exactly_what_decoding_produces(self):
+        """`_hex_digit_count` gates the budget; `_decode_hex` produces the payload.
+
+        They read whitespace by different mechanisms - `translate(delete=...)` and
+        `bytes.split()` - so a divergence between the two would either refuse
+        profiles that fit or admit ones that do not. Checked across a window
+        boundary, where a lone odd digit is carried by hand.
+        """
+        from thumbor_ai_label.scan.png import _WINDOW, _decode_hex, _hex_digit_count
+
+        for padding in (b"", b"\n", b"\t\r ", b"\x0b\x0c"):
+            digits = (b"ab" + padding) * (_WINDOW // 2)
+            view = memoryview(digits)
+            assert _hex_digit_count(view) // 2 == len(_decode_hex(view)), f"pad={padding!r}"
+
     def test_a_far_off_keyword_delimiter_is_not_copied_up_to(self):
         """A NUL that *is* present, just megabytes in - the case the bound exists for.
 

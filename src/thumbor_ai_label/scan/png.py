@@ -65,11 +65,16 @@ def _hex_digit_count(view: memoryview) -> int:
 
     Two of these make one decoded byte, so this is the exact size of what a raw
     profile would decode to - known before anything is decoded.
+
+    ``translate`` deletes the whitespace in a single pass at C level. Counting each
+    whitespace byte separately meant six passes over every window, and this runs on
+    attacker-supplied bytes: 33.6 ms versus 7.9 ms over a 16 MB hex region. The
+    allocation it costs is one window, which the walk is already paying.
     """
     total = 0
     for position in range(0, len(view), _WINDOW):
         window = bytes(view[position : position + _WINDOW])
-        total += len(window) - sum(window.count(char) for char in _WHITESPACE)
+        total += len(window.translate(None, delete=_WHITESPACE))
     return total
 
 

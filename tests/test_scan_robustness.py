@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from thumbor_ai_label.scan import Container, ScanResult, scan
+from thumbor_ai_label.scan import Container, ScanLimits, ScanResult, scan
 
 from .builders import (
     app1_exif,
@@ -142,6 +142,25 @@ def test_gif_cost_does_not_scale_with_image_size_either():
 
     assert result.xmp == [XMP]
     assert elapsed < 0.1, f"scanning 32 MB took {elapsed:.3f}s; the walk is reading image data"
+
+
+def test_png_raw_profile_cost_stays_linear():
+    """SECURITY.md treats scan time growing with file size as a denial-of-service.
+
+    The raw-profile walk is the most expensive metadata path in the scanner - it
+    measures the hex, then decodes it - and it runs entirely on attacker-supplied
+    bytes. A constant-factor regression here is cheap to introduce and invisible
+    without a bound.
+    """
+    payload = b"<x:xmpmeta>" + b"z" * (8 * 1024 * 1024) + b"</x:xmpmeta>"
+    raw = build_png([raw_profile(b"xmp", payload)])
+
+    start = time.perf_counter()
+    result = scan(raw, ScanLimits(max_xmp_bytes=1024))
+    elapsed = time.perf_counter() - start
+
+    assert result.xmp == [], "refused, so the cost is the measuring pass alone"
+    assert elapsed < 0.5, f"measuring a {len(raw) / 1024 / 1024:.0f} MB profile took {elapsed:.3f}s"
 
 
 def test_a_hostile_file_still_reports_that_metadata_exists():
