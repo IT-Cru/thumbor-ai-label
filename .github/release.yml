@@ -12,6 +12,9 @@
 # thing a contributor has to get right; this file only says what each one is called
 # in the notes.
 #
+# The contributor-facing half of this lives in CONTRIBUTING.md, under "Naming branches
+# and pull requests" - that table and this file have to agree about the section names.
+#
 # Read from the DEFAULT BRANCH at release time, not from the tag - so a change here
 # takes effect for the next release only once it is on main.
 changelog:
