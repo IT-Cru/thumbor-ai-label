@@ -1,0 +1,70 @@
+# Derives a PR's label from the type prefix in its title.
+#
+# The generated release notes group by LABEL (see .github/release.yml), while the
+# convention contributors actually follow is a `feat:`/`fix:`/`chore:` prefix on the
+# title - which is also the release-note line itself. Asking for both would mean two
+# things to remember and one of them silently missing: no pull request in this
+# repository's first thirty had ever carried a label.
+#
+# So the prefix stays the single source of truth and the label is derived from it.
+name: PR label
+
+on:
+  pull_request_target:
+    # `edited` matters as much as `opened`: retitling a PR is how a mislabelled one
+    # gets corrected, and the label has to follow.
+    types: [opened, edited, reopened]
+
+# `pull_request_target` runs with a writable token in the BASE repository's context,
+# which is what lets this work for a pull request from a fork. It is only safe
+# because nothing here checks out or executes the pull request's code - the title is
+# read from the event payload and passed through the environment.
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: pr-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply the label matching the title prefix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          # Through the environment, never interpolated into the script body. A pull
+          # request title is attacker-controlled text, and `${{ ... }}` expanded
+          # inside `run:` is substituted before the shell sees it - a title
+          # containing shell syntax would execute with this job's token.
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          # Conventional Branch v1.1.0 purpose prefixes, short forms.
+          case "${TITLE%%:*}" in
+            feat)       want=enhancement ;;
+            fix|hotfix) want=bug ;;
+            chore)      want=chore ;;
+            release)    want=release ;;
+            *)
+              echo "::warning title=Unrecognised PR title prefix::" \
+                "Expected one of feat:, fix:, hotfix:, chore:, release: - see" \
+                "CONTRIBUTING.md. Without one this PR lands under 'Other changes'" \
+                "in the release notes."
+              exit 0
+              ;;
+          esac
+
+          # Retitling should move the PR between sections rather than add it to two,
+          # so every other type label comes off first.
+          for label in enhancement bug chore release; do
+            if [ "$label" != "$want" ]; then
+              gh pr edit "$NUMBER" --repo "$REPO" --remove-label "$label" || true
+            fi
+          done
+
+          gh pr edit "$NUMBER" --repo "$REPO" --add-label "$want"
+          echo "Labelled #${NUMBER} as ${want}."
