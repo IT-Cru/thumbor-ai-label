@@ -140,3 +140,79 @@ class TestTextChunkEdges:
         result = scan(build_png([chunk]))
         assert result.xmp == []
         assert result.truncated is True
+
+
+class TestBudgetsAreCheckedBeforeCopying:
+    """A payload too big to keep must not be materialised in order to find that out.
+
+    PNG is where this mattered most: a text chunk's header used to be located by
+    copying the whole chunk, and a raw profile was expanded through a body slice, a
+    split, a joined hex string and an ASCII decode - roughly four times the buffer -
+    before the budget was consulted. Both are now measured in place.
+    """
+
+    def test_an_oversized_raw_profile_is_refused_without_decoding(self):
+        big = b"<x:xmpmeta>" + b"y" * 20_000 + b"</x:xmpmeta>"
+        result = scan(build_png([raw_profile(b"xmp", big)]), ScanLimits(max_xmp_bytes=1000))
+
+        assert result.xmp == []
+        assert result.truncated is True
+        assert any("byte budget exhausted" in note for note in result.notes)
+
+    def test_an_oversized_itxt_is_refused(self):
+        big = b"<x:xmpmeta>" + b"y" * 20_000 + b"</x:xmpmeta>"
+        chunk = itxt(b"XML:com.adobe.xmp", big)
+        result = scan(build_png([chunk]), ScanLimits(max_xmp_bytes=1000))
+
+        assert result.xmp == []
+        assert any("byte budget exhausted" in note for note in result.notes)
+
+    def test_a_profile_padded_with_whitespace_costs_its_real_size(self):
+        """ImageMagick wraps hex across lines, so stored size overstates the payload.
+
+        Measuring the stored bytes rather than the hex digits would refuse a profile
+        that fits, and would do it more often the more the writer wrapped.
+        """
+        payload = b"<x:xmpmeta>" + b"z" * 400 + b"</x:xmpmeta>"
+        hex_text = payload.hex().encode("ascii")
+        wrapped = b"\n".join(hex_text[i : i + 78] for i in range(0, len(hex_text), 78))
+        body = b"\nxmp\n" + str(len(payload)).encode() + b"\n" + wrapped
+        chunk = png_chunk(b"tEXt", b"Raw profile type xmp\x00" + body)
+
+        # A budget that fits the payload but not the wrapped hex it arrived in.
+        result = scan(build_png([chunk]), ScanLimits(max_xmp_bytes=len(payload)))
+        assert result.xmp == [payload]
+
+    def test_a_header_field_spanning_the_search_window_is_still_found(self):
+        """The windowed search must not miss a delimiter past its first window."""
+        from thumbor_ai_label.scan.png import _WINDOW
+
+        padding = b"q" * (_WINDOW * 2 + 13)
+        chunk = png_chunk(b"tEXt", b"Comment" + padding + b"\x00ignored")
+        result = scan(build_png([chunk]))
+
+        assert result.segments == []
+        assert result.truncated is False, "the separator was found, so nothing is malformed"
+
+    def test_peak_allocation_does_not_track_the_buffer(self):
+        """The property the whole change exists for, asserted rather than described.
+
+        A 24 MB profile against a 2 MB budget used to peak near 100 MB. The bound
+        here is deliberately loose - it is catching a return to copy-then-check, not
+        policing a byte count.
+        """
+        import tracemalloc
+
+        big = b"<x:xmpmeta>" + b"y" * (12 * 1024 * 1024) + b"</x:xmpmeta>"
+        raw = build_png([raw_profile(b"xmp", big)])
+
+        tracemalloc.start()
+        result = scan(raw, ScanLimits(max_xmp_bytes=1024))
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert result.xmp == [], "far too big to keep"
+        assert peak < 4 * 1024 * 1024, (
+            f"peaked at {peak / 1024 / 1024:.1f} MB on a {len(raw) / 1024 / 1024:.0f} MB "
+            "buffer; a payload is being copied before the budget refuses it"
+        )

@@ -143,12 +143,12 @@ class TestChunkedXmp:
 
 
 class TestBudgets:
-    """An oversized block is refused from its measured length, before it is copied.
+    """An oversized block is refused before it is copied, in one shared wording.
 
-    `ScanResult.add` enforces the same budget, but only once it is holding the
-    bytes - so a hostile block would be materialised and then dropped. The JPEG
-    walker refuses extended XMP from its *declared* length for the same reason; a
-    GIF block declares nothing, so it gets measured.
+    A conformant block is a slice, so `add` weighs it and copies only on acceptance.
+    A chunked one has to be joined to exist at all, so its length is walked first and
+    put through the same `accepts` predicate - which is what keeps the refusal note
+    identical either way, and identical to every other walker's.
     """
 
     def packet(self, size: int) -> bytes:
@@ -161,14 +161,22 @@ class TestBudgets:
         result = scan(self.big(5000), ScanLimits(max_xmp_bytes=1000))
         assert result.segments == []
         assert result.truncated is True
-        assert any("over the 1000 budget" in note for note in result.notes)
+        assert result.notes == (
+            "xmp byte budget exhausted (0 of 1000); dropped 5023 from gif:XMP DataXMP",
+        )
 
     def test_an_oversized_chunked_packet_is_skipped(self):
         """The reassembly path is the one that would allocate the most."""
         result = scan(self.big(5000, magic_trailer=False), ScanLimits(max_xmp_bytes=1000))
         assert result.segments == []
         assert result.truncated is True
-        assert any("over the 1000 budget" in note for note in result.notes)
+        assert "no magic trailer" not in " ".join(result.notes), "refused before reassembly"
+
+    def test_both_paths_refuse_in_the_same_words(self):
+        """The inconsistency #29 was filed over: two messages for one condition."""
+        conformant = scan(self.big(5000), ScanLimits(max_xmp_bytes=1000))
+        chunked = scan(self.big(5000, magic_trailer=False), ScanLimits(max_xmp_bytes=1000))
+        assert conformant.notes == chunked.notes
 
     def test_the_measured_length_matches_what_reassembly_produces(self):
         """A mismatch would refuse packets that fit, or admit ones that do not."""
