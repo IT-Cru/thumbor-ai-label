@@ -1,10 +1,11 @@
 # Derives a PR's label from the type prefix in its title.
 #
 # The generated release notes group by LABEL (see .github/release.yml), while the
-# convention contributors actually follow is a `feat:`/`fix:`/`chore:` prefix on the
-# title - which is also the release-note line itself. Asking for both would mean two
-# things to remember and one of them silently missing: no pull request in this
-# repository's first thirty had ever carried a label.
+# convention contributors actually follow is a type prefix on the title - which is
+# also the release-note line itself. Asking for both would mean two things to
+# remember and one of them silently missing, and the history says which one goes
+# missing: across this repository's first thirty pull requests not one carried a
+# label, until four were added retroactively to seed these categories.
 #
 # So the prefix stays the single source of truth and the label is derived from it.
 name: PR label
@@ -50,10 +51,13 @@ jobs:
             chore)      want=chore ;;
             release)    want=release ;;
             *)
+              # Self-contained on purpose: CONTRIBUTING.md does not document the
+              # title convention yet (#21), so pointing there would send the
+              # reader somewhere that cannot answer them.
               echo "::warning title=Unrecognised PR title prefix::" \
-                "Expected one of feat:, fix:, hotfix:, chore:, release: - see" \
-                "CONTRIBUTING.md. Without one this PR lands under 'Other changes'" \
-                "in the release notes."
+                "Expected one of feat:, fix:, hotfix:, chore:, release: - the" \
+                "Conventional Branch v1.1.0 short forms. Without one this pull" \
+                "request lands under 'Other changes' in the release notes."
               exit 0
               ;;
           esac

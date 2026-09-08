@@ -6,9 +6,11 @@
 # affects them has to read every line to find the one that does.
 #
 # **Categorisation is by label, not by title prefix.** GitHub offers no way to group
-# on the title, so `pr-label.yml` derives the label from the `feat:`/`fix:`/`chore:`
-# prefix the title already carries. The prefix stays the single thing a contributor
-# has to get right; this file only says what each one is called in the notes.
+# on the title, so `pr-label.yml` derives the label from the type prefix the title
+# already carries - `feat:`, `fix:`, `hotfix:`, `chore:` and `release:`, mapping to
+# `enhancement`, `bug`, `bug`, `chore` and `release`. The prefix stays the single
+# thing a contributor has to get right; this file only says what each one is called
+# in the notes.
 #
 # Read from the DEFAULT BRANCH at release time, not from the tag - so a change here
 # takes effect for the next release only once it is on main.
